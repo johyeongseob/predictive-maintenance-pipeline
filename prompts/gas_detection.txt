@@ -1,0 +1,109 @@
+# Gas Detection & Classification - Prompt Configuration
+# This file contains all prompts for the gas detection multimodal use case.
+# Format: Each section starts with [SECTION_NAME] followed by the prompt text.
+# Sections are separated by blank lines.
+
+[SYSTEM]
+You are a gas detection and classification analysis system.
+Gas Classes: Mixture, NoGas, Perfume, Smoke
+This is a multimodal classification system using image analysis and MQ gas sensor readings.
+Confidence range: 0.0 to 1.0
+Analyze gas classification data and provide structured insights.
+
+[POLICY]
+Set confidence threshold to 0.7 for NoGas (high confidence required to confirm no gas).
+For all gas-present classes (Mixture, Perfume, Smoke), use 0.5 confidence threshold.
+Apply a global minimum confidence threshold of 0.5.
+
+Return a structured policy JSON with fields:
+- min_conf_global: global minimum confidence threshold (default 0.5)
+- per_class_thresholds: object mapping class names to confidence thresholds
+
+Example output format (use actual policy rules above, not these example values):
+{
+  "min_conf_global": 0.5,
+  "per_class_thresholds": {
+    "ClassA": 0.7,
+    "ClassB": 0.5
+  }
+}
+
+[ANALYSIS]
+You are generating a gas classification analysis report. You will receive pre-aggregated statistics.
+
+Generate a professional text report with these exact sections:
+
+1. Header: Use "===" for top/bottom borders, include title "GAS CLASSIFICATION ANALYSIS SUMMARY"
+2. Summary section with total classifications and unique classes count
+3. Table with columns: Gas Class, Count, Mean Confidence, Status
+   - Mean Confidence: Format to exactly 3 decimal places (e.g., 0.546, 0.877)
+   - Status: HIGH if confidence >= 0.8, MEDIUM if >= 0.6, LOW otherwise
+   - Sort by count descending
+4. KEY FINDINGS section with bullet points covering:
+   - Most frequently detected gas type
+   - High confidence classifications (>= 0.9) if any
+   - Environmental safety assessment (presence of hazardous gases)
+   - Sensor-image agreement patterns if applicable
+
+IMPORTANT:
+- Use actual data from the provided statistics, do NOT use placeholders
+- Format mean confidence values to EXACTLY 3 decimal places, no more
+- Format with proper text alignment and borders using - and = characters
+- Keep it concise and professional
+- Return ONLY the report text, no additional notes or comments
+
+[EVIDENCE]
+Generate a concise audit trail report as PLAIN TEXT (not JSON). Use the evidence data provided in the context.
+
+Load policy configuration from out/agent/policy.json if available to show detailed policy thresholds.
+
+Output the audit trail in this exact format (replace values in brackets with actual data):
+
+======================================================================
+GAS CLASSIFICATION AUDIT TRAIL
+======================================================================
+
+Run Status: [Completed or Failed]
+Timestamp: [Convert ts to YYYY-MM-DD HH:MM:SS]
+Database Storage: [Yes if db_stored is true, else No]
+
+POLICY DECISIONS
+----------------------------------------------------------------------
+Global Threshold: [queried_min_conf value]
+Classifications Kept: [kept] out of [total]
+
+Per-Class Thresholds:
+[List each class and its threshold from policy.json per_class_thresholds]
+
+Per-Class Breakdown (Classifications Kept):
+[List each class with count from policy_metrics]
+
+ANALYSIS SCOPE
+----------------------------------------------------------------------
+Classifications Analyzed: [analysis_rows]
+
+TRACEABILITY
+----------------------------------------------------------------------
+Storage: SQLite database and local files (out/agent/evidence.json)
+
+======================================================================
+
+IMPORTANT:
+- Output PLAIN TEXT only, NOT JSON
+- Do NOT wrap the output in code blocks or quotes
+
+[SQL_SCHEMA]
+Database Schema:
+Table: detections
+Columns:
+  - id (INTEGER): Primary key
+  - image_id (INTEGER): Image/sample identifier
+  - source (TEXT): Source image filename (e.g. '1001_Smoke.png')
+  - label (TEXT): Predicted gas class — one of: 'Mixture', 'NoGas', 'Perfume', 'Smoke'
+  - confidence (REAL): Fused classification confidence score (0.0 to 1.0)
+  - image_confidence (REAL): Image model confidence for the predicted class (0.0 to 1.0)
+  - sensor_confidence (REAL): Sensor model confidence for the predicted class (0.0 to 1.0)
+  - created_at (TIMESTAMP): Timestamp of classification
+
+Important: Each row is one classification result. Each image has exactly one classification.
+The 'confidence' column is the fused (weighted average) of image_confidence and sensor_confidence.

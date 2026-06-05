@@ -2,6 +2,7 @@
 Policy-based detection filtering utility.
 
 Shared by Analysis and Evidence agents to apply policy rules consistently.
+Schema-agnostic: only applies filters for fields that exist in each detection.
 """
 
 from typing import List, Dict, Any
@@ -11,15 +12,13 @@ def filter_detections(detections: List[Dict[str, Any]], policy: Dict[str, Any]) 
     """
     Filter detections based on policy rules.
     
+    Works with any detection schema — only applies a rule if the relevant
+    field exists in the detection dict. Detections are flat dicts straight
+    from SQL (e.g. {'label': ..., 'confidence': ..., 'width': ..., ...}).
+    
     Args:
-        detections: List of detection dicts with structure:
-            {
-                "label": str,
-                "confidence": float,
-                "bbox": {"x": float, "y": float, "width": float, "height": float},
-                ...
-            }
-        policy: Policy dict with structure:
+        detections: List of flat detection dicts (columns depend on use-case schema)
+        policy: Policy dict with optional keys:
             {
                 "min_conf_global": float,
                 "per_class_thresholds": {"label": float, ...},
@@ -34,24 +33,30 @@ def filter_detections(detections: List[Dict[str, Any]], policy: Dict[str, Any]) 
     
     min_conf_global = policy.get("min_conf_global", 0.0)
     per_class_thresholds = policy.get("per_class_thresholds", {})
-    bbox_min_size = policy.get("bbox_min_size", {"width": 0, "height": 0})
+    bbox_min_size = policy.get("bbox_min_size", {})
     
     filtered = []
     
     for det in detections:
-        label = det.get("label", "")
-        confidence = det.get("confidence", 0)
-        bbox = det.get("bbox", {})
-        width = bbox.get("width", 0)
-        height = bbox.get("height", 0)
+        # Confidence filter (only if confidence field exists)
+        confidence = det.get("confidence")
+        if confidence is not None:
+            label = det.get("label", "")
+            threshold = per_class_thresholds.get(label, min_conf_global)
+            if confidence < threshold:
+                continue
         
-        # Determine threshold for this label
-        threshold = per_class_thresholds.get(label, min_conf_global)
+        # Bbox size filter (only if width/height fields exist AND policy specifies min size)
+        if bbox_min_size:
+            # Support both flat keys and nested bbox dict
+            width = det.get("width") or (det.get("bbox", {}) or {}).get("width")
+            height = det.get("height") or (det.get("bbox", {}) or {}).get("height")
+            
+            if width is not None and height is not None:
+                if (width < bbox_min_size.get("width", 0) or
+                        height < bbox_min_size.get("height", 0)):
+                    continue
         
-        # Apply filters
-        if (confidence >= threshold and 
-            width >= bbox_min_size.get("width", 0) and 
-            height >= bbox_min_size.get("height", 0)):
-            filtered.append(det)
+        filtered.append(det)
     
     return filtered

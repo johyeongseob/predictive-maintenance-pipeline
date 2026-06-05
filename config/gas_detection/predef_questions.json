@@ -1,0 +1,17 @@
+{
+  "analysis": [
+    "What are the most common gas types detected?",
+    "Summarize the analysis in 3 bullet points.",
+    "What is the mean confidence of Smoke class?"
+  ],
+  "evidence": [
+    "What policy was used for this run?",
+    "Timestamp of this run.",
+    "How many classifications were kept after filtering?"
+  ],
+  "sql": [
+    "Count classifications grouped by label.",
+    "Show images classified as Smoke with confidence above 0.5.",
+    "Show me the NoGas classifications with highest confidence."
+  ]
+}

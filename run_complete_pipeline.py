@@ -45,15 +45,22 @@ def run_command(cmd: list, description: str, check_output: bool = False):
         sys.exit(1)
 
 
+def get_use_case_id_from_config():
+    """Read the default use-case-id from config.json."""
+    try:
+        with open("config.json", "r") as f:
+            main_config = json.load(f)
+        return main_config.get("default-use-case", "pipeline_defects_detection")
+    except Exception:
+        return "pipeline_defects_detection"
+
+
 def load_config(config_path: str = None):
     """Load configuration file."""
     try:
         if config_path is None:
-            # Read use-case-id from config.json
-            with open("config.json", "r") as f:
-                main_config = json.load(f)
-            use_case_id = main_config.get("use-case-id", "pipeline_defects_detection")
-            config_path = f"config/{use_case_id}.yaml"
+            use_case_id = get_use_case_id_from_config()
+            config_path = f"config/{use_case_id}/config.yaml"
         
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
@@ -89,8 +96,8 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="out",
-        help="Output directory for results (default: out)"
+        default=None,
+        help="Output directory for results (default: out/<use-case-id>)"
     )
     parser.add_argument(
         "--video",
@@ -107,14 +114,20 @@ def main():
     
     args = parser.parse_args()
     
-    # Create output directory
-    out_dir = Path(args.output_dir)
-    out_dir.mkdir(exist_ok=True)
-    
-    # Load config
+    # Load config (needed to determine use_case_id for output dir)
     config = load_config(args.config)
+    
+    # Determine use_case_id
+    use_case_id = get_use_case_id_from_config()
+    
+    # Create output directory: out/<use-case-id>/
+    out_dir = Path(args.output_dir) if args.output_dir else Path("out") / use_case_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
     if config:
-        print(f"✅ Loaded config: {args.config}")
+        print(f"✅ Loaded config: config/{use_case_id}/config.yaml")
+        print(f"   Use case: {config.get('display_text', use_case_id)}")
+        print(f"   Modality: {config.get('modality', 'image')}")
         print(f"   Backend: SQL")
         print(f"   Classes: {config.get('nc', 'unknown')}")
         print(f"   Device: {args.device}")

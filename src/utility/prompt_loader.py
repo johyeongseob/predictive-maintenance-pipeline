@@ -26,7 +26,7 @@ def load_prompts(filepath: str) -> Dict[str, str]:
         Dictionary mapping section names (lowercase) to prompt text
         
     Example:
-        prompts = load_prompts("prompts/pipeline_defects_detection.txt")
+        prompts = load_prompts("prompts/<use_case_id>.txt")
         policy_prompt = prompts["policy"]
         analysis_prompt = prompts["analysis"]
     """
@@ -69,7 +69,7 @@ def load_prompt_section(filepath: str, section: str) -> str:
         KeyError: If section not found
         
     Example:
-        policy = load_prompt_section("prompts/pipeline_defects_detection.txt", "policy")
+        policy = load_prompt_section("prompts/<use_case_id>.txt", "policy")
     """
     prompts = load_prompts(filepath)
     section_lower = section.lower()

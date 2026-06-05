@@ -8,7 +8,7 @@ All agents communicate ONLY through Meta Agent.
 
 Usage:
     python -m scripts.run_agent_orchestration
-    python -m scripts.run_agent_orchestration --use-case pipeline_defects_detection
+    python -m scripts.run_agent_orchestration --use-case my_use_case
 """
 
 import sys
@@ -109,17 +109,21 @@ def _create_llm(cfg: dict, agent_name: str = None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--use-case", type=str, default="pipeline_defects_detection",
-                    help="Use case prompt file name (default: pipeline_defects_detection)")
+    ap.add_argument("--use-case", type=str, default=None,
+                    help="Use case prompt file name (default: from config.json)")
     args = ap.parse_args()
 
-    # Load use-case-id from config.json
+    # Load default use case from config.json
     with open("config.json", "r", encoding="utf-8") as f:
         main_config = json.load(f)
-    use_case_id = main_config.get("use-case-id", "pipeline_defects_detection")
+    use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
+    
+    # Override use_case_id if user provided --use-case
+    if args.use_case:
+        use_case_id = args.use_case
     
     # Load the use-case specific config
-    config_path = f"config/{use_case_id}.yaml"
+    config_path = f"config/{use_case_id}/config.yaml"
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
     
@@ -171,8 +175,11 @@ def main():
         print(f"[Setup] ✅ Warmup complete")
 
     # Load prompts
-    prompt_file = f"prompts/{args.use_case}.txt"
+    prompt_file = f"prompts/{use_case_id}.txt"
     prompts = load_prompts(prompt_file)
+    
+    # Compute output directory
+    out_dir = f"out/{use_case_id}"
     
     # ✅ Build meta namespace with per-agent resources
     meta = {
@@ -184,6 +191,7 @@ def main():
                 "evidence": evidence_llm
             },
             "config": cfg,
+            "out_dir": out_dir,
             "prompts": {
                 "policy_prompt": prompts.get("policy", ""),
                 "analysis_prompt": prompts.get("analysis", ""),
@@ -211,11 +219,11 @@ def main():
     print("="*70)
     print(f"Total Defects Analyzed: {analysis_data.get('total_defects', 0)}")
     print(f"\n📁 Outputs saved to:")
-    print(f"   • Policy: out/agent/policy.json")
-    print(f"   • Analysis: out/agent/analysis_report.json")
-    print(f"   • Analysis Summary: out/agent/analysis_summary.txt")
-    print(f"   • Evidence: out/agent/evidence.json")
-    print(f"   • Audit Trail: out/agent/evidence_trail.txt")
+    print(f"   • Policy: {out_dir}/agent/policy.json")
+    print(f"   • Analysis: {out_dir}/agent/analysis_report.json")
+    print(f"   • Analysis Summary: {out_dir}/agent/analysis_summary.txt")
+    print(f"   • Evidence: {out_dir}/agent/evidence.json")
+    print(f"   • Audit Trail: {out_dir}/agent/evidence_trail.txt")
 
 
 if __name__ == "__main__":

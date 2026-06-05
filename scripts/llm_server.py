@@ -74,11 +74,11 @@ async def load_model():
         logger.info("🚀 Starting PACE LLM Server...")
         
         # Load config
-        # Read use-case-id from config.json
+        # Read default use case from config.json
         with open("config.json", "r") as f:
             main_config = json.load(f)
-        use_case_id = main_config.get("use-case-id", "pipeline_defects_detection")
-        config_path = Path(f"config/{use_case_id}.yaml")
+        use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
+        config_path = Path(f"config/{use_case_id}/config.yaml")
         
         if not config_path.exists():
             logger.error(f"❌ {config_path} not found")
@@ -202,12 +202,12 @@ if __name__ == "__main__":
     
     # Load config to get port
     try:
-        # Read use-case-id from config.json
+        # Read default use case from config.json
         with open("config.json", "r") as f:
             main_config = json.load(f)
-        use_case_id = main_config.get("use-case-id", "pipeline_defects_detection")
+        use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
         
-        with open(f"config/{use_case_id}.yaml", "r") as f:
+        with open(f"config/{use_case_id}/config.yaml", "r") as f:
             cfg = yaml.safe_load(f)
         glue_cfg = cfg.get("glue", {})
         port = glue_cfg.get("server_port", 8000)

@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PACE — {{ display_text }}</title>
+<style>
+/* ── Reset & Base ──────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--surface:#181b23;--surface2:#1e2230;--border:#2a2e3d;
+  --text:#e4e6ed;--text2:#9ca0ae;--accent:#6c8cff;--accent2:#4f6fff;
+  --green:#3ad98b;--red:#f45d6b;--orange:#f0a045;
+  --radius:10px;--font:'Inter',system-ui,-apple-system,sans-serif;
+}
+html{font-size:15px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);
+  min-height:100vh;display:flex;flex-direction:column}
+a{color:var(--accent);text-decoration:none}
+
+/* ── Top Bar ───────────────────────────────────────────────────────── */
+.topbar{display:flex;align-items:center;gap:18px;padding:14px 28px;
+  background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.topbar .logo{font-size:1.35rem;font-weight:700;letter-spacing:.04em;color:var(--accent)}
+.topbar .logo span{color:var(--text)}
+.tab-bar{display:flex;gap:4px;margin-left:32px}
+.tab-btn{background:none;border:none;color:var(--text2);font-size:.93rem;
+  padding:8px 18px;border-radius:8px;cursor:pointer;transition:.2s}
+.tab-btn:hover{color:var(--text);background:var(--surface2)}
+.tab-btn.active{color:var(--accent);background:rgba(108,140,255,.1);font-weight:600}
+
+/* ── Layout ────────────────────────────────────────────────────────── */
+.page{flex:1;display:none;padding:28px 32px;max-width:1200px;margin:0 auto;width:100%}
+.page.active{display:flex;flex-direction:column;gap:22px}
+
+/* ── Cards ─────────────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px 26px}
+.card h2{font-size:1.1rem;margin-bottom:14px;color:var(--text);font-weight:600;display:flex;align-items:center;gap:8px}
+.card h2 .icon{font-size:1.15rem}
+
+/* ── Forms / Inputs ────────────────────────────────────────────────── */
+label{font-size:.85rem;color:var(--text2);display:block;margin-bottom:5px}
+input[type=number],input[type=text],select,.text-input{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:9px 13px;border-radius:8px;font-size:.92rem;outline:none;width:100%;transition:.2s}
+input[type=number]:focus,input[type=text]:focus,select:focus,.text-input:focus{border-color:var(--accent)}
+.row{display:flex;gap:16px;align-items:flex-end}
+.row>*{flex:1}
+
+button,.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  background:var(--accent2);color:#fff;border:none;padding:10px 22px;
+  border-radius:8px;font-size:.92rem;font-weight:600;cursor:pointer;transition:.2s}
+button:hover,.btn:hover{background:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+.btn-outline{background:none;border:1px solid var(--border);color:var(--text2)}
+.btn-outline:hover{border-color:var(--accent);color:var(--text)}
+.btn-sm{padding:7px 14px;font-size:.82rem}
+
+/* ── Terminal ──────────────────────────────────────────────────────── */
+.terminal{
+  background:#0c0e14;border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px 20px;font-family:'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+  font-size:.82rem;line-height:1.65;color:#c8ccd8;max-height:520px;overflow-y:auto;
+  white-space:pre-wrap;word-break:break-word;scroll-behavior:smooth}
+.terminal::-webkit-scrollbar{width:6px}
+.terminal::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.terminal .line-success{color:var(--green)}
+.terminal .line-error{color:var(--red)}
+.terminal .line-step{color:var(--accent);font-weight:700}
+.terminal .line-info{color:var(--orange)}
+
+/* ── Status badge ──────────────────────────────────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;
+  padding:4px 10px;border-radius:20px;font-weight:600}
+.badge.idle{background:rgba(156,160,174,.12);color:var(--text2)}
+.badge.running{background:rgba(108,140,255,.14);color:var(--accent)}
+.badge.done{background:rgba(58,217,139,.12);color:var(--green)}
+.badge.error{background:rgba(244,93,107,.12);color:var(--red)}
+
+/* ── Chat ──────────────────────────────────────────────────────────── */
+.chat-container{display:flex;flex-direction:column;height:calc(100vh - 210px);min-height:400px}
+.chat-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.mode-btn{padding:7px 16px;border-radius:20px;font-size:.82rem;font-weight:600;
+  background:var(--surface2);border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:.2s}
+.mode-btn:hover{border-color:var(--accent);color:var(--text)}
+.mode-btn.active{background:rgba(108,140,255,.15);border-color:var(--accent);color:var(--accent)}
+
+.messages{flex:1;overflow-y:auto;padding:10px 0;display:flex;flex-direction:column;gap:14px}
+.messages::-webkit-scrollbar{width:5px}
+.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+.msg{max-width:85%;padding:12px 16px;border-radius:14px;font-size:.9rem;line-height:1.55;
+  white-space:pre-wrap;word-break:break-word}
+.msg.user{align-self:flex-end;background:var(--accent2);color:#fff;border-bottom-right-radius:4px}
+.msg.assistant{align-self:flex-start;background:var(--surface2);color:var(--text);border-bottom-left-radius:4px}
+.msg.system{align-self:center;background:none;color:var(--text2);font-size:.82rem;text-align:center;padding:6px 0}
+.msg.assistant .sql-block{background:#0c0e14;border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;margin:8px 0;font-family:'JetBrains Mono',monospace;font-size:.8rem;color:#c8ccd8}
+.msg.assistant .sql-frames{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:10px}
+.msg.assistant .sql-frames .frame-card{display:flex;flex-direction:column;gap:6px}
+.msg.assistant .sql-frames img{width:100%;border-radius:6px;border:1px solid var(--border);cursor:pointer;transition:.2s}
+.msg.assistant .sql-frames img:hover{border-color:var(--accent);transform:scale(1.02)}
+
+/* Ticket buttons in chat */
+.ticket-btn{padding:5px 12px;font-size:.78rem;background:transparent;color:var(--accent);
+  border:1px solid var(--accent);border-radius:6px;cursor:pointer;transition:.2s}
+.ticket-btn:hover{background:var(--accent);color:#fff}
+.ticket-btn:disabled{opacity:.5;cursor:default}
+
+/* Ticket cards */
+.ticket-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;
+  display:flex;flex-direction:column;gap:8px;transition:.2s}
+.ticket-card:hover{border-color:var(--accent)}
+.ticket-card .tc-title{font-weight:600;color:var(--accent);font-size:.95rem}
+.ticket-card .tc-meta{color:var(--text2);font-size:.8rem}
+.ticket-card a{color:var(--accent);text-decoration:none;font-size:.85rem}
+.ticket-card a:hover{text-decoration:underline}
+
+.chat-input-bar{display:flex;gap:10px;margin-top:12px}
+.chat-input-bar .text-input{flex:1;padding:12px 16px;font-size:.92rem}
+.chat-input-bar button{flex-shrink:0}
+
+/* ── Preset Questions ──────────────────────────────────────────────── */
+.preset-questions{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:10px}
+.preset-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text2);
+  padding:8px 14px;border-radius:20px;font-size:.82rem;cursor:pointer;transition:.2s;
+  text-align:left;line-height:1.3}
+.preset-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(108,140,255,.08)}
+
+.typing-indicator{display:inline-flex;gap:4px;padding:10px 16px}
+.typing-indicator span{width:7px;height:7px;background:var(--text2);border-radius:50%;
+  animation:bounce .6s infinite alternate}
+.typing-indicator span:nth-child(2){animation-delay:.2s}
+.typing-indicator span:nth-child(3){animation-delay:.4s}
+@keyframes bounce{to{opacity:.3;transform:translateY(-4px)}}
+
+/* ── Viz gallery ───────────────────────────────────────────────────── */
+.viz-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-top:10px}
+.viz-grid img{width:100%;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:.2s}
+.viz-grid img:hover{border-color:var(--accent);transform:scale(1.02)}
+
+/* Lightbox */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;
+  justify-content:center;z-index:100;cursor:zoom-out}
+.lightbox.show{display:flex}
+.lightbox img{max-width:92vw;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media(max-width:700px){
+  .page{padding:16px}
+  .row{flex-direction:column}
+  .topbar{padding:12px 16px}
+  .tab-bar{margin-left:auto}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ Top Bar ═══ -->
+<header class="topbar">
+  <div class="logo">{{ display_text }} <span>Web UI</span></div>
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="pipeline"><span>▶</span> Pipeline</button>
+    <button class="tab-btn" data-tab="chat"><span>💬</span> Chat</button>
+    <button class="tab-btn" data-tab="tickets"><span>🎫</span> Tickets</button>
+  </nav>
+</header>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     PAGE 1  –  Pipeline Runner
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="page active" id="page-pipeline">
+
+  <!-- Controls -->
+  <div class="card">
+    <h2><span class="icon">⚙️</span> Pipeline Configuration</h2>
+    <div class="row">
+      <div>
+        <label for="useCaseSelect">Use Case</label>
+        <select id="useCaseSelect" onchange="switchUseCase()"></select>
+      </div>
+      <div>
+        <label for="inputMode">Input Mode</label>
+        <select id="inputMode" onchange="toggleInputMode()">
+          <option value="video" selected>Video</option>
+          <option value="images">Images</option>
+        </select>
+      </div>
+      <div>
+        <label for="device">Device</label>
+        <select id="device">
+          <option value="GPU" selected>GPU</option>
+          <option value="CPU">CPU</option>
+        </select>
+      </div>
+      <div id="numImagesGroup" style="display:none">
+        <label for="numImages">Number of images</label>
+        <input type="number" id="numImages" value="100" min="1" max="10000">
+      </div>
+      <div id="inferenceIntervalGroup">
+        <label for="inferenceInterval">Inference interval</label>
+        <input type="number" id="inferenceInterval" value="1" min="1" max="100" title="Run inference every Nth frame (video mode)">
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <div id="videoPathGroup">
+        <label for="videoPath">Video path</label>
+        <input type="text" id="videoPath" value="">
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:10px">
+        <button id="btnRun" onclick="startPipeline()">▶ Run Pipeline</button>
+        <span class="badge idle" id="pipelineBadge">Idle</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Terminal output -->
+  <div class="card" style="flex:1">
+    <h2><span class="icon">🖥️</span> Pipeline Output</h2>
+    <div class="terminal" id="terminalOutput">Waiting to start…\n</div>
+  </div>
+
+  <!-- Visualizations -->
+  <div class="card" id="vizCard" style="display:none">
+    <h2><span class="icon">📊</span> Annotated Output <button class="btn-sm btn-outline" onclick="loadViz()" style="margin-left:auto">↻ Refresh</button></h2>
+    <div id="annotatedVideoBox" style="display:none">
+      <video id="annotatedVideo" controls style="width:100%;max-height:480px;border-radius:8px;border:1px solid var(--border)"></video>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     PAGE 2  –  Interactive Chat
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="page" id="page-chat">
+  <div class="card chat-container">
+    <div class="chat-header">
+      <h2 style="margin-bottom:0"><span class="icon">💬</span> Interactive Chat</h2>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <button class="mode-btn active" data-mode="analysis">Analysis Agent</button>
+        <button class="mode-btn" data-mode="evidence">Evidence Agent</button>
+        <button class="mode-btn" data-mode="sql">Database Query</button>
+      </div>
+    </div>
+
+    <div class="messages" id="chatMessages-analysis">
+      <div class="msg system">Ask a question about the pipeline detection analysis.</div>
+    </div>
+    <div class="messages" id="chatMessages-evidence" style="display:none">
+      <div class="msg system">Ask a question to review evidence and audit trails.</div>
+    </div>
+    <div class="messages" id="chatMessages-sql" style="display:none">
+      <div class="msg system">Ask a natural-language question — it will be converted to SQL.</div>
+    </div>
+
+    <!-- Preset questions per mode (loaded dynamically from predef_questions.json) -->
+    <div class="preset-questions" id="presets-analysis"></div>
+    <div class="preset-questions" id="presets-evidence" style="display:none"></div>
+    <div class="preset-questions" id="presets-sql" style="display:none"></div>
+
+    <div class="chat-input-bar">
+      <input class="text-input" id="chatInput" placeholder="Type your question…" autocomplete="off"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}">
+      <button id="btnSend" onclick="sendChat()">Send →</button>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     PAGE 3  –  Tickets
+     ═══════════════════════════════════════════════════════════════════ -->
+<section class="page" id="page-tickets">
+  <div class="card">
+    <h2 style="margin-bottom:16px"><span class="icon">🎫</span> Defect Tickets</h2>
+    <p style="color:var(--text2);margin-bottom:16px">Tickets are generated from Database Query results. Use the Chat → Database Query mode to find defects, then raise tickets for specific frames.</p>
+    <button onclick="refreshTicketList()" style="margin-bottom:16px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">🔄 Refresh</button>
+    <div id="ticketList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>
+    <div id="ticketEmpty" style="color:var(--text2);text-align:center;padding:40px">No tickets yet. Run a Database Query and raise tickets from the results.</div>
+  </div>
+  <!-- Inline ticket viewer -->
+  <div id="ticketViewer" style="display:none;margin-top:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+      <button onclick="closeTicketViewer()" style="padding:6px 14px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;cursor:pointer">← Back to list</button>
+      <span id="ticketViewerTitle" style="color:var(--accent);font-weight:600"></span>
+    </div>
+    <iframe id="ticketFrame" style="width:100%;height:80vh;border:1px solid var(--border);border-radius:8px;background:#0d1117"></iframe>
+  </div>
+</section>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('show')">
+  <img id="lightboxImg" src="" alt="">
+</div>
+
+<script>
+/* ── Tab switching ─────────────────────────────────────────────────── */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('page-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='chat') initChat();
+    if(btn.dataset.tab==='tickets') refreshTicketList();
+  });
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   PIPELINE
+   ══════════════════════════════════════════════════════════════════════ */
+let pipelineRunning=false;
+
+/* Load config defaults from server */
+fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
+  // Populate use-case dropdown
+  var ucSelect=document.getElementById('useCaseSelect');
+  if(cfg.use_cases && cfg.use_cases.length){
+    ucSelect.innerHTML='';
+    cfg.use_cases.forEach(function(uc){
+      var opt=document.createElement('option');
+      opt.value=uc.id;
+      opt.textContent=uc.display_text;
+      if(uc.id===cfg.use_case_id) opt.selected=true;
+      ucSelect.appendChild(opt);
+    });
+  }
+  // Update page title
+  document.querySelector('.topbar .logo').innerHTML=cfg.display_text+' <span>Web UI</span>';
+  if(cfg.input_mode) document.getElementById('inputMode').value=cfg.input_mode;
+  if(cfg.device) document.getElementById('device').value=cfg.device;
+  if(cfg.inference_interval) document.getElementById('inferenceInterval').value=cfg.inference_interval;
+  if(cfg.video_path) document.getElementById('videoPath').value=cfg.video_path;
+  toggleInputMode();
+}).catch(function(){ toggleInputMode(); });
+
+function switchUseCase(){
+  var ucSelect=document.getElementById('useCaseSelect');
+  var selectedId=ucSelect.value;
+  fetch('/api/use-case',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({use_case_id:selectedId})
+  }).then(function(r){return r.json()}).then(function(d){
+    if(d.ok){
+      // Reset chat state so it re-initializes for new use case
+      chatReady=false;
+      chatLoading=false;
+      // Reload config to update all fields
+      fetch('/api/config').then(function(r){return r.json()}).then(function(cfg){
+        document.querySelector('.topbar .logo').innerHTML=cfg.display_text+' <span>Web UI</span>';
+        document.title='PACE — '+cfg.display_text;
+        if(cfg.input_mode) document.getElementById('inputMode').value=cfg.input_mode;
+        if(cfg.device) document.getElementById('device').value=cfg.device;
+        if(cfg.inference_interval) document.getElementById('inferenceInterval').value=cfg.inference_interval;
+        document.getElementById('videoPath').value=cfg.video_path||'';
+        toggleInputMode();
+        // Reload agent outputs for the new use case
+        reloadAgentOutputs();
+      });
+    }
+  }).catch(function(){});
+}
+
+function toggleInputMode(){
+  var mode=document.getElementById('inputMode').value;
+  document.getElementById('numImagesGroup').style.display=(mode==='images')?'':'none';
+  document.getElementById('inferenceIntervalGroup').style.display=(mode==='video')?'':'none';
+  document.getElementById('videoPathGroup').style.display=(mode==='video')?'':'none';
+}
+
+function startPipeline(){
+  if(pipelineRunning) return;
+  var mode=document.getElementById('inputMode').value;
+  var num=document.getElementById('numImages').value;
+  var dev=document.getElementById('device').value;
+  var interval=document.getElementById('inferenceInterval').value;
+  var vidPath=document.getElementById('videoPath').value;
+  var term=document.getElementById('terminalOutput');
+  var badge=document.getElementById('pipelineBadge');
+  var btn=document.getElementById('btnRun');
+
+  term.textContent='';
+  badge.className='badge running'; badge.textContent='Running…';
+  btn.disabled=true; pipelineRunning=true;
+  document.getElementById('vizCard').style.display='none';
+
+  fetch('/api/pipeline/start',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({input_mode:mode,num_images:parseInt(num),device:dev,inference_interval:parseInt(interval),video_path:vidPath})
+  }).then(r=>r.json()).then(d=>{
+    if(!d.ok){badge.className='badge error';badge.textContent='Error';btn.disabled=false;pipelineRunning=false;return}
+    const es=new EventSource('/api/pipeline/stream');
+    es.onmessage=function(e){
+      const data=JSON.parse(e.data);
+      if(data.done){
+        es.close();pipelineRunning=false;btn.disabled=false;
+        badge.className='badge done';badge.textContent='Complete';
+        loadViz();
+        reloadAgentOutputs();
+        return;
+      }
+      appendTerminal(term,data.line);
+    };
+    es.onerror=function(){
+      es.close();pipelineRunning=false;btn.disabled=false;
+      badge.className='badge error';badge.textContent='Disconnected';
+    };
+  }).catch(err=>{
+    badge.className='badge error';badge.textContent='Error';btn.disabled=false;pipelineRunning=false;
+  });
+}
+
+function appendTerminal(el,line){
+  const span=document.createElement('span');
+  if(/✅|SUCCESS/.test(line)) span.className='line-success';
+  else if(/❌|FAILED|ERROR/.test(line)) span.className='line-error';
+  else if(/^STEP:|^={20,}/.test(line.trim())) span.className='line-step';
+  else if(/⚠️|📊|📄|📌|🚀|Command:/.test(line)) span.className='line-info';
+  span.textContent=line;
+  el.appendChild(span);
+  el.scrollTop=el.scrollHeight;
+}
+
+/* ── Visualizations ────────────────────────────────────────────────── */
+function loadViz(){
+  var card=document.getElementById('vizCard');
+  fetch('/api/annotated-video').then(r=>r.json()).then(d=>{
+    var box=document.getElementById('annotatedVideoBox');
+    if(d.exists){
+      box.style.display='';
+      var vid=document.getElementById('annotatedVideo');
+      vid.src=d.path+'?t='+Date.now();
+      vid.load();
+      card.style.display='';
+    } else { box.style.display='none'; }
+  }).catch(function(){});
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   CHAT
+   ══════════════════════════════════════════════════════════════════════ */
+let chatReady=false, chatLoading=false, chatMode='analysis';
+
+function activeMsgs(){return document.getElementById('chatMessages-'+chatMode)}
+
+const agentLoaded={analysis:false, evidence:false};
+
+document.querySelectorAll('.mode-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    // Hide all message panels, show the selected one
+    document.querySelectorAll('.messages[id^="chatMessages-"]').forEach(el=>el.style.display='none');
+    // Hide all preset panels, show the selected one
+    document.querySelectorAll('.preset-questions').forEach(el=>el.style.display='none');
+    chatMode=btn.dataset.mode;
+    activeMsgs().style.display='';
+    var presetPanel=document.getElementById('presets-'+chatMode);
+    if(presetPanel) presetPanel.style.display='';
+    // Lazy-load agent output on first click
+    if((chatMode==='analysis'||chatMode==='evidence') && !agentLoaded[chatMode]){
+      agentLoaded[chatMode]=true;
+      loadAgentOutput(chatMode);
+    }
+  });
+});
+
+function loadAgentOutput(agent){
+  fetch('/api/agent-output/'+agent).then(r=>r.json()).then(d=>{
+    if(!d.text) return;
+    const panel=document.getElementById('chatMessages-'+agent);
+    const div=document.createElement('div');div.className='msg assistant';
+    div.style.whiteSpace='pre-wrap';div.style.fontFamily="'JetBrains Mono',monospace";div.style.fontSize='.82rem';
+    div.textContent=d.text;
+    panel.appendChild(div);panel.scrollTop=panel.scrollHeight;
+  }).catch(function(){});
+}
+
+function reloadAgentOutputs(){
+  // Clear existing agent messages and reload for new use case
+  ['analysis','evidence'].forEach(function(agent){
+    var panel=document.getElementById('chatMessages-'+agent);
+    panel.innerHTML='<div class="msg system">Ask a question about the '+agent+' results.</div>';
+    agentLoaded[agent]=false;
+  });
+  // Reload the currently active agent panel
+  agentLoaded[chatMode]=true;
+  loadAgentOutput(chatMode);
+  // Also reload preset questions
+  fetch('/api/predef-questions').then(function(r){return r.json()}).then(function(data){
+    ['analysis','evidence','sql'].forEach(function(mode){
+      var container=document.getElementById('presets-'+mode);
+      if(!container||!data[mode]) return;
+      container.innerHTML='';
+      data[mode].forEach(function(q){
+        var btn=document.createElement('button');
+        btn.className='preset-btn';btn.textContent=q;
+        btn.onclick=function(){fillPreset(btn)};
+        container.appendChild(btn);
+      });
+    });
+  }).catch(function(){});
+}
+
+// Load default tab (analysis) on page load
+agentLoaded.analysis=true;
+loadAgentOutput('analysis');
+
+function modeLabel(m){return{analysis:'Analysis Agent',evidence:'Evidence Agent',sql:'Database Query'}[m]||m}
+
+function initChat(){
+  if(chatReady||chatLoading) return;
+  chatLoading=true;
+  addMsg('system','Initialising chat engine — loading LLM, please wait…');
+  fetch('/api/chat/init',{method:'POST'}).then(r=>r.json()).then(d=>{
+    chatLoading=false;
+    if(d.ok){chatReady=true;
+      // Notify all panels
+      document.querySelectorAll('.messages[id^="chatMessages-"]').forEach(el=>{
+        const div=document.createElement('div');div.className='msg system';div.textContent='Chat engine ready. Ask a question!';el.appendChild(div);
+      });
+    }
+    else addMsg('system','⚠️ '+d.error);
+  }).catch(()=>{chatLoading=false;addMsg('system','⚠️ Could not connect to server.')});
+}
+
+function sendChat(){
+  const input=document.getElementById('chatInput');
+  const q=input.value.trim();if(!q)return;
+  input.value='';
+  addMsg('user',q);
+
+  // Show typing indicator
+  const typing=document.createElement('div');
+  typing.className='msg assistant';
+  typing.innerHTML='<div class="typing-indicator"><span></span><span></span><span></span></div>';
+  const msgs=activeMsgs();
+  msgs.appendChild(typing);msgs.scrollTop=msgs.scrollHeight;
+
+  document.getElementById('btnSend').disabled=true;
+
+  fetch('/api/chat/ask',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({mode:chatMode,question:q})
+  }).then(r=>r.json()).then(d=>{
+    typing.remove();
+    document.getElementById('btnSend').disabled=false;
+    if(d.error){addMsg('assistant','⚠️ '+d.error);return}
+    if(chatMode==='sql'){
+      // Pretty-print SQL answers
+      const parts=d.answer.split('\n\n');
+      let html='';
+      if(parts.length>=1) html+='<div class="sql-block">'+escHtml(parts[0])+'</div>';
+      if(parts.length>=2) html+='<div class="sql-block">'+escHtml(parts.slice(1).join('\n\n'))+'</div>';
+      // Show annotated frames with ticket buttons for image_refs in results
+      var refs = d.image_refs || [];
+      if(!refs.length && d.frame_ids && d.frame_ids.length){
+        refs = d.frame_ids.map(fid=>({id:fid, filename:'frame_'+String(fid).padStart(6,'0')+'.jpg', label:'Frame '+fid}));
+      }
+      if(refs.length){
+        html+='<div class="sql-frames">';
+        refs.forEach(ref=>{
+          html+='<div class="frame-card">';
+          html+='<img src="/viz/'+ref.filename+'" alt="'+ref.label+'" title="'+ref.label+'" onclick="document.getElementById(\'lightboxImg\').src=this.src;document.getElementById(\'lightbox\').classList.add(\'show\')">';
+          html+='<button class="ticket-btn" onclick="raiseTicket(\''+ref.id+'\',this)">🎫 Ticket '+ref.label+'</button>';
+          html+='</div>';
+        });
+        html+='</div>';
+      }
+      addMsgHtml('assistant',html);
+    } else {
+      addMsg('assistant',d.answer);
+    }
+  }).catch(()=>{typing.remove();document.getElementById('btnSend').disabled=false;
+    addMsg('assistant','⚠️ Request failed.')});
+}
+
+function addMsg(role,text){
+  const msgs=activeMsgs();
+  const div=document.createElement('div');div.className='msg '+role;
+  div.textContent=text;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+function addMsgHtml(role,html){
+  const msgs=activeMsgs();
+  const div=document.createElement('div');div.className='msg '+role;
+  div.innerHTML=html;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function fillPreset(btn){
+  var input=document.getElementById('chatInput');
+  input.value=btn.textContent;
+  input.focus();
+}
+
+/* Load preset questions from server */
+(function loadPresetQuestions(){
+  fetch('/api/predef-questions').then(function(r){return r.json()}).then(function(data){
+    ['analysis','evidence','sql'].forEach(function(mode){
+      var container=document.getElementById('presets-'+mode);
+      if(!container||!data[mode]) return;
+      container.innerHTML='';
+      data[mode].forEach(function(q){
+        var btn=document.createElement('button');
+        btn.className='preset-btn';
+        btn.textContent=q;
+        btn.onclick=function(){fillPreset(btn)};
+        container.appendChild(btn);
+      });
+    });
+  }).catch(function(){});
+})();
+
+/* ══════════════════════════════════════════════════════════════════════
+   TICKETS
+   ══════════════════════════════════════════════════════════════════════ */
+function raiseTicket(imageId, btn){
+  btn.disabled=true;btn.textContent='⏳ Creating…';
+  // Show progress in SQL chat panel
+  const prevMode=chatMode; chatMode='sql';
+  addMsg('system','🎫 Creating ticket for '+imageId+'…');
+  chatMode=prevMode;
+
+  fetch('/api/ticket/create',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({frame_id:imageId})
+  }).then(r=>r.json()).then(d=>{
+    const prev2=chatMode; chatMode='sql';
+    if(d.ok){
+      btn.textContent='✅ Ticket Created';
+      addMsg('system','✅ '+d.message+' → '+d.filename);
+    } else {
+      btn.disabled=false;btn.textContent='🎫 Retry';
+      addMsg('system','⚠️ Failed: '+(d.error||'unknown error'));
+    }
+    chatMode=prev2;
+  }).catch(()=>{
+    btn.disabled=false;btn.textContent='🎫 Ticket Frame '+frameId;
+    const prev3=chatMode; chatMode='sql';
+    addMsg('system','⚠️ Request failed.');
+    chatMode=prev3;
+  });
+}
+
+function refreshTicketList(){
+  const list=document.getElementById('ticketList');
+  const empty=document.getElementById('ticketEmpty');
+  list.innerHTML='<div style="color:var(--text2)">Loading…</div>';
+  fetch('/api/tickets').then(r=>r.json()).then(d=>{
+    if(!d.tickets||!d.tickets.length){
+      list.innerHTML='';empty.style.display='';return;
+    }
+    empty.style.display='none';
+    list.innerHTML=d.tickets.map(t=>`
+      <div class="ticket-card">
+        <div class="tc-title">🎫 Frame ${t.frame_id!==null?t.frame_id:'?'}</div>
+        <div class="tc-meta">${t.filename} · ${t.size_kb} KB</div>
+        <a href="javascript:void(0)" onclick="viewTicket('${t.filename}')">Open Ticket ↗</a>
+      </div>
+    `).join('');
+  }).catch(()=>{list.innerHTML='<div style="color:var(--warn)">Failed to load tickets.</div>'});
+}
+
+function viewTicket(filename){
+  document.getElementById('ticketViewer').style.display='';
+  document.getElementById('ticketViewerTitle').textContent=filename;
+  document.getElementById('ticketFrame').src='/ticket/'+filename;
+}
+function closeTicketViewer(){
+  document.getElementById('ticketViewer').style.display='none';
+  document.getElementById('ticketFrame').src='';
+}
+</script>
+</body>
+</html>

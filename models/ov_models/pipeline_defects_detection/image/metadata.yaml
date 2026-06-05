@@ -1,7 +1,7 @@
 description: Ultralytics pipeline_defects_detection model trained on /kumarr3/pace/datasets/pipeline_anomaly_90_10/dataset.yaml
 author: Ultralytics
-date: '2026-02-19T11:47:55.144236'
-version: 8.4.14
+date: '2026-03-19T14:50:25.900521'
+version: 8.4.23
 license: AGPL-3.0 License (https://ultralytics.com/license)
 docs: https://docs.ultralytics.com
 stride: 32

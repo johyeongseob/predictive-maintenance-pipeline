@@ -59,9 +59,9 @@ def load_model_and_setup(model_name: str, device: str):
         # Load config
         with open("config.json", "r", encoding="utf-8") as f:
             main_config = json.load(f)
-        use_case_id = main_config.get("use-case-id", "pipeline_defects_detection")
+        use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
         
-        config_path = f"config/{use_case_id}.yaml"
+        config_path = f"config/{use_case_id}/config.yaml"
         with open(config_path, "r", encoding="utf-8") as f:
             cfg = yaml.safe_load(f)
         

@@ -45,14 +45,18 @@ def run_pipeline_with_timing(device: str, num_images: int = 1000):
     update_config_device(device)
     
     # Clean outputs directory based on config
-    with open('config/pipeline_defects_detection.yaml', 'r') as f:
+    with open('config.json', 'r') as f:
+        main_config = json.load(f)
+    use_case_id = main_config.get('default-use-case', 'pipeline_defects_detection')
+    with open(f'config/{use_case_id}/config.yaml', 'r') as f:
         config = yaml.safe_load(f)
     
+    out_dir = f'out/{use_case_id}'
     sqlite_cfg = config.get('sqlite', {})
     if sqlite_cfg.get('clear_outputs', True):
-        clean_outputs(out_dir='out')
+        clean_outputs(out_dir=out_dir)
     if sqlite_cfg.get('clear_on_run', True):
-        clean_database(db_path=sqlite_cfg.get('db_path', 'out/sql_data/detections.db'))
+        clean_database(db_path=sqlite_cfg.get('db_path', f'{out_dir}/sql_data/detections.db'))
     
     # Start total timer
     total_start = time.time()
@@ -62,7 +66,7 @@ def run_pipeline_with_timing(device: str, num_images: int = 1000):
     stage_start = time.time()
     result = subprocess.run(
         ["python", "run_inference_oep.py", "--num-images", str(num_images),
-         "--device", device, "--output", "out/detections.jsonl"],
+         "--device", device, "--output", f"{out_dir}/detections.jsonl"],
         capture_output=True,
         text=True
     )

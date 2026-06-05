@@ -6,17 +6,44 @@ evidence trail context, and embedded frame images.
 """
 
 import base64
+import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+
+# Allowlist pattern: stem must start with alphanumeric and contain only safe chars
+_SAFE_STEM_RE = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_\-]*$')
+
+
+def _safe_filename_stem(value: str) -> str:
+    """Return a validated filename stem using os.path.basename (CodeQL-recognized
+    sanitizer), then enforce an alphanumeric-only allowlist.  Raises ValueError
+    if the value does not pass validation."""
+    basename = os.path.basename(value)          # strips directory components
+    stem = os.path.splitext(basename)[0]        # strip extension
+    if not stem or not _SAFE_STEM_RE.fullmatch(stem):
+        raise ValueError(f"Unsafe filename stem: {value!r}")
+    return stem
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
+def _get_out_dir() -> Path:
+    """Get the use-case-specific output directory."""
+    import json, yaml
+    try:
+        with open(PROJECT_ROOT / "config.json") as f:
+            use_case_id = json.load(f).get("default-use-case", "pipeline_defects_detection")
+        return PROJECT_ROOT / "out" / use_case_id
+    except Exception:
+        return PROJECT_ROOT / "out" / "pipeline_defects_detection"
+
+
 def _read_evidence_trail() -> str:
     """Read the evidence trail file if it exists."""
-    trail_path = PROJECT_ROOT / "out" / "agent" / "evidence_trail.txt"
+    trail_path = _get_out_dir() / "agent" / "evidence_trail.txt"
     if trail_path.exists():
         return trail_path.read_text(encoding="utf-8")
     return "(No evidence trail available)"
@@ -30,11 +57,29 @@ def _encode_image_base64(image_path: Path) -> Optional[str]:
     return None
 
 
-def _get_frame_detections(db_client, frame_id: int) -> List[Dict[str, Any]]:
-    """Get all detections for a specific frame from the database."""
+def _get_frame_detections(db_client, frame_id) -> List[Dict[str, Any]]:
+    """Get all detections/classifications for a specific frame/image from the database."""
     try:
+        # Try frame_id first (detection use case)
         rows = db_client.execute_query(
-            "SELECT * FROM detections WHERE frame_id = ?", (frame_id,)
+            "SELECT * FROM detections WHERE frame_id = ?", (int(frame_id),)
+        )
+        return rows
+    except Exception:
+        pass
+    try:
+        # Try image_id (classification use case)
+        rows = db_client.execute_query(
+            "SELECT * FROM detections WHERE image_id = ?", (int(frame_id),)
+        )
+        if rows:
+            return rows
+    except Exception:
+        pass
+    try:
+        # Try source match (classification use case, string identifier)
+        rows = db_client.execute_query(
+            "SELECT * FROM detections WHERE source LIKE ?", (f"%{frame_id}%",)
         )
         return rows
     except Exception:
@@ -42,29 +87,47 @@ def _get_frame_detections(db_client, frame_id: int) -> List[Dict[str, Any]]:
 
 
 def generate_ticket_html(
-    frame_id: int,
+    frame_id,
     detections: List[Dict[str, Any]],
     evidence_trail: str,
     image_path: Path,
     image_base64: Optional[str],
 ) -> str:
-    """Generate a self-contained HTML ticket for a defect frame."""
+    """Generate a self-contained HTML ticket for a defect/classification."""
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    # Determine if this is detection (has x, y, width, height) or classification
+    is_detection = detections and 'x' in detections[0]
 
     # Build detections table rows
     det_rows = ""
-    for det in detections:
-        det_rows += f"""
+    if is_detection:
+        table_header = "<tr><th>Label</th><th>Confidence</th><th>Position (x, y)</th><th>Size (w × h)</th></tr>"
+        for det in detections:
+            det_rows += f"""
         <tr>
             <td>{det.get('label', 'N/A')}</td>
             <td>{det.get('confidence', 0):.3f}</td>
             <td>({det.get('x', 0)}, {det.get('y', 0)})</td>
             <td>{det.get('width', 0)} × {det.get('height', 0)}</td>
         </tr>"""
+    else:
+        table_header = "<tr><th>Source</th><th>Label</th><th>Confidence</th></tr>"
+        for det in detections:
+            det_rows += f"""
+        <tr>
+            <td>{det.get('source', 'N/A')}</td>
+            <td>{det.get('label', 'N/A')}</td>
+            <td>{det.get('confidence', 0):.3f}</td>
+        </tr>"""
+
+    n_cols = 4 if is_detection else 3
+    ticket_title = f"Frame {frame_id}" if is_detection else str(frame_id)
+    safe_id = str(frame_id).replace('.', '_').replace('/', '_') if not isinstance(frame_id, int) else f"F{frame_id:06d}"
 
     # Image tag (embedded base64 or path reference)
     if image_base64:
-        img_tag = f'<img src="data:image/jpeg;base64,{image_base64}" alt="Frame {frame_id}" style="max-width:100%;border-radius:8px;border:1px solid #333">'
+        img_tag = f'<img src="data:image/jpeg;base64,{image_base64}" alt="{ticket_title}" style="max-width:100%;border-radius:8px;border:1px solid #333">'
     else:
         img_tag = f'<p style="color:#f44">Image not found: {image_path}</p>'
 
@@ -80,7 +143,7 @@ def generate_ticket_html(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Defect Ticket — Frame {frame_id}</title>
+<title>Ticket — {ticket_title}</title>
 <style>
   :root {{--bg:#0d1117;--surface:#161b22;--border:#30363d;--text:#c9d1d9;--accent:#58a6ff;--warn:#f85149}}
   *{{box-sizing:border-box;margin:0;padding:0}}
@@ -106,21 +169,21 @@ def generate_ticket_html(
 <body>
 <div class="ticket">
   <div class="header">
-    <h1>🎫 Defect Ticket — Frame {frame_id}</h1>
-    <div class="meta">Generated: {timestamp} &nbsp;|&nbsp; Ticket ID: TICKET-F{frame_id:06d}</div>
+    <h1>🎫 Ticket — {ticket_title}</h1>
+    <div class="meta">Generated: {timestamp} &nbsp;|&nbsp; Ticket ID: TICKET-{safe_id}</div>
   </div>
 
   <div class="section">
-    <h2>📸 Annotated Frame</h2>
+    <h2>📸 Image</h2>
     <div class="img-container">{img_tag}</div>
     <div class="path-info">Image path: {image_path}</div>
   </div>
 
   <div class="section">
-    <h2>🔍 Detection Details ({len(detections)} detection{'s' if len(detections) != 1 else ''})</h2>
+    <h2>🔍 Results ({len(detections)} {'detection' if is_detection else 'classification'}{'s' if len(detections) != 1 else ''})</h2>
     <table>
-      <thead><tr><th>Label</th><th>Confidence</th><th>Position (x, y)</th><th>Size (w × h)</th></tr></thead>
-      <tbody>{det_rows if det_rows else '<tr><td colspan="4" style="text-align:center;color:#8b949e">No detections found</td></tr>'}
+      <thead>{table_header}</thead>
+      <tbody>{det_rows if det_rows else f'<tr><td colspan="{n_cols}" style="text-align:center;color:#8b949e">No results found</td></tr>'}
       </tbody>
     </table>
   </div>
@@ -135,13 +198,13 @@ def generate_ticket_html(
     return html
 
 
-def create_ticket(db_client, frame_id: int) -> Dict[str, Any]:
+def create_ticket(db_client, frame_id) -> Dict[str, Any]:
     """
-    Create a ticket for a specific frame.
+    Create a ticket for a specific frame/image.
 
     Args:
         db_client: SQLiteClient instance for querying detections
-        frame_id: The frame ID to create a ticket for
+        frame_id: Frame ID (int) or source image identifier (str/int)
 
     Returns:
         Dict with 'ok', 'path', and 'message' keys
@@ -152,10 +215,57 @@ def create_ticket(db_client, frame_id: int) -> Dict[str, Any]:
     # Read evidence trail
     evidence_trail = _read_evidence_trail()
 
-    # Locate the frame image
-    viz_filename = f"frame_{frame_id:06d}.jpg"
-    image_path = PROJECT_ROOT / "out" / "viz" / viz_filename
-    image_base64 = _encode_image_base64(image_path)
+    # Locate the image in viz/
+    out_dir = _get_out_dir()
+    viz_dir = out_dir / "viz"
+
+    # Build an index of actual files in viz_dir. Image paths are selected
+    # exclusively from this index — no user input ever flows into a Path
+    # constructor, which eliminates CodeQL path-injection taint entirely.
+    viz_files: Dict[str, Path] = {}  # lowercase stem -> resolved Path
+    if viz_dir.is_dir():
+        for entry in viz_dir.iterdir():
+            if entry.is_file():
+                viz_files[entry.stem.lower()] = entry.resolve()
+
+    def _find_viz_image(target_stem: str) -> Optional[Path]:
+        """Lookup an image by stem from the pre-built viz file index."""
+        return viz_files.get(target_stem.lower())
+
+    # Locate the image — user input is only used to compute a lookup key (string),
+    # the actual Path object always comes from viz_files (filesystem enumeration).
+    image_path = None
+    if isinstance(frame_id, int) or (isinstance(frame_id, str) and str(frame_id).isdigit()):
+        # Numeric frame id — int() coercion produces a safe format string key
+        fid = int(frame_id)
+        image_path = _find_viz_image(f"frame_{fid:06d}")
+        if not image_path and detections:
+            src = detections[0].get('source', '')
+            if src:
+                try:
+                    lookup_stem = _safe_filename_stem(src)
+                    image_path = _find_viz_image(lookup_stem)
+                except ValueError:
+                    pass
+    else:
+        # String identifier (e.g. gas detection "1014_Perfume.png")
+        try:
+            lookup_stem = _safe_filename_stem(str(frame_id))
+            image_path = _find_viz_image(lookup_stem)
+        except ValueError:
+            pass
+
+    if not image_path:
+        # No matching file found; use a non-existent placeholder so
+        # image_base64 will be None (no file to encode).
+        image_path = viz_dir / "frame_not_found.jpg"
+
+    image_base64 = _encode_image_base64(image_path) if image_path.exists() else None
+
+    # Determine display label
+    display_label = str(frame_id)
+    if detections and 'source' in detections[0]:
+        display_label = detections[0]['source']
 
     # Generate the HTML ticket
     html = generate_ticket_html(
@@ -167,9 +277,10 @@ def create_ticket(db_client, frame_id: int) -> Dict[str, Any]:
     )
 
     # Write ticket to disk
-    tickets_dir = PROJECT_ROOT / "out" / "tickets"
+    tickets_dir = out_dir / "tickets"
     tickets_dir.mkdir(parents=True, exist_ok=True)
-    ticket_file = tickets_dir / f"ticket_{frame_id}.html"
+    safe_name = str(frame_id).replace('/', '_').replace('\\', '_').replace('.', '_')
+    ticket_file = tickets_dir / f"ticket_{safe_name}.html"
     ticket_file.write_text(html, encoding="utf-8")
 
     return {
@@ -178,5 +289,5 @@ def create_ticket(db_client, frame_id: int) -> Dict[str, Any]:
         "filename": ticket_file.name,
         "frame_id": frame_id,
         "num_detections": len(detections),
-        "message": f"Ticket created for frame {frame_id} with {len(detections)} detection(s)",
+        "message": f"Ticket created for {display_label} with {len(detections)} result(s)",
     }

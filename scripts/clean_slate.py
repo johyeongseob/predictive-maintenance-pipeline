@@ -22,14 +22,23 @@ def clean_database(db_path='out/sql_data/detections.db'):
         db_path: Path to the SQLite database file
     """
     try:
-        from src.utility.sqlite_client import SQLiteClient
+        import sqlite3
         
         db_file = Path(db_path)
         if db_file.exists():
             print(f"🗑️  Clearing database: {db_path}")
-            client = SQLiteClient(db_path=db_path)
-            client.clear_detections()
-            client.close()
+            conn = sqlite3.connect(str(db_file))
+            cursor = conn.cursor()
+            # Get existing table name(s) and clear them
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+            for (table_name,) in tables:
+                if not table_name.startswith('sqlite_'):
+                    # Validate table name is alphanumeric (returned from sqlite_master, but validate for safety)
+                    if table_name.replace('_', '').isalnum():
+                        cursor.execute(f"DELETE FROM {table_name}")  # nosec B608
+            conn.commit()
+            conn.close()
             print(f"✓ Database cleared")
         else:
             print(f"ℹ️  Database not found: {db_path} (will be created)")
@@ -96,9 +105,9 @@ if __name__ == '__main__':
     if db_path is None:
         with open("config.json", "r") as f:
             main_config = json.load(f)
-        use_case_id = main_config.get("use-case-id", "pipeline_defects_detection")
+        use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
         
-        with open(f"config/{use_case_id}.yaml", "r") as f:
+        with open(f"config/{use_case_id}/config.yaml", "r") as f:
             cfg = yaml.safe_load(f)
         
         db_path = cfg.get("sqlite", {}).get("db_path", f"out/sql_data/{use_case_id}.db")

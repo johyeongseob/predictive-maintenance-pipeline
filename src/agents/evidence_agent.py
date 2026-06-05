@@ -58,10 +58,12 @@ def evidence_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     evidence_record["trail"] = trail
     
     # Save outputs
-    os.makedirs("out/agent", exist_ok=True)
-    with open("out/agent/evidence.json", "w") as f:
+    out_dir = resources.get("out_dir", "out")
+    agent_dir = f"{out_dir}/agent"
+    os.makedirs(agent_dir, exist_ok=True)
+    with open(f"{agent_dir}/evidence.json", "w") as f:
         json.dump(evidence_record, f, indent=2)
-    with open("out/agent/evidence_trail.txt", "w") as f:
+    with open(f"{agent_dir}/evidence_trail.txt", "w") as f:
         f.write(trail)
     
     elapsed = time.time() - start_time

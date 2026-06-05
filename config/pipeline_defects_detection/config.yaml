@@ -1,0 +1,125 @@
+display_text: "Pipeline Defects Detection"
+modality: image  # 'image', 'sensor', or 'multi'
+
+nc: 6
+names:
+  0: Deformation
+  1: Obstacle
+  2: Rupture
+  3: Disconnect
+  4: Misalignment
+  5: Deposition
+inference:
+  task: detect  # 'detect' or 'classify'
+  model_path: models/ov_models/pipeline_defects_detection/image/best.xml
+  device: GPU
+  confidence_threshold: 0.25
+  iou_threshold: 0.45
+  imgsz: 640
+  input_mode: video  # 'video' or 'images'
+  video_path: datasets/pipeline_defects_detection/video/input.mp4
+  images_path: datasets/pipeline_defects_detection/images/val
+  inference_interval: 1  # Run inference every Nth frame (video mode only)
+sqlite:
+  db_path: out/pipeline_defects_detection/sql_data/detections.db
+  clear_on_run: true
+  clear_outputs: true
+agents:
+  confidence_threshold: 0.4
+  report_top_n: 5
+  
+  # Execution mode: 'sequential' or 'parallel'
+  # - sequential: All agents share one LLM on same device (faster, less memory)
+  # - parallel: Each agent gets separate LLM, can use different devices
+  execution_mode: sequential
+  
+  # Shared device for sequential mode
+  shared_device: NPU
+  
+  # Per-agent LLM configuration (used in parallel mode only)
+  policy:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+  
+  analysis:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+  
+  evidence:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: NPU
+glue:
+  mode: model
+  model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+  device: NPU
+  max_steps: 4
+  verbose: true
+  enable_cache: false
+  suppress_thinking: true
+  server_url: http://localhost:8000
+  server_port: 8000
+sql:
+  model_id: models/ov_models/llms/sqlcoder-7b-2-int4cw
+  device: GPU
+  server_url: http://localhost:8000
+  server_port: 8000
+  use_case: pipeline_defects_detection
+
+# Database schema definition (used by sqlite_client and inference pipeline)
+schema:
+  table_name: detections
+  columns:
+    - name: id
+      type: INTEGER PRIMARY KEY AUTOINCREMENT
+      required: false
+    - name: frame_id
+      type: INTEGER
+      required: true
+    - name: label
+      type: TEXT
+      required: true
+    - name: confidence
+      type: REAL
+      required: true
+    - name: x
+      type: INTEGER
+      required: true
+    - name: y
+      type: INTEGER
+      required: true
+    - name: width
+      type: INTEGER
+      required: true
+    - name: height
+      type: INTEGER
+      required: true
+    - name: metadata
+      type: TEXT
+      required: false
+    - name: created_at
+      type: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      required: false
+  indexes:
+    - frame_id
+    - label
+    - confidence
+
+# Mapping from raw DLStreamer detection output to schema columns.
+# Dot-notation paths reference nested keys in DLStreamer's native JSON objects.
+# Supported prefixes:
+#   scale_w:<path>             - value * image_width (cast to int)
+#   scale_h:<path>             - value * image_height (cast to int)
+#   scale_w_diff:<pathA>-<pathB> - (A - B) * image_width (cast to int)
+#   scale_h_diff:<pathA>-<pathB> - (A - B) * image_height (cast to int)
+#   __frame_index__            - sequential frame number
+detection_mapping:
+  frame_id: __frame_index__
+  label: detection.label
+  confidence: detection.confidence
+  x: "scale_w:detection.bounding_box.x_min"
+  y: "scale_h:detection.bounding_box.y_min"
+  width: "scale_w_diff:detection.bounding_box.x_max-detection.bounding_box.x_min"
+  height: "scale_h_diff:detection.bounding_box.y_max-detection.bounding_box.y_min"

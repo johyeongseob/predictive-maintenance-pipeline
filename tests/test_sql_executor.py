@@ -74,8 +74,8 @@ def run_sql_tests():
     print("Loading configuration...", flush=True)
     with open('config.json', 'r') as f:
         main_config = json.load(f)
-    use_case_id = main_config.get('use-case-id', 'pipeline_defects_detection')
-    config_path = f'config/{use_case_id}.yaml'
+    use_case_id = main_config.get('default-use-case', 'pipeline_defects_detection')
+    config_path = f'config/{use_case_id}/config.yaml'
 
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)

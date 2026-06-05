@@ -168,7 +168,7 @@ def main():
     try:
         with open('config.json', 'r') as f:
             main_config = json.load(f)
-        use_case_id = main_config.get('use-case-id', 'pipeline_defects_detection')
+        use_case_id = main_config.get('default-use-case', 'pipeline_defects_detection')
     except Exception as e:
         print(f"Warning: Could not read config.json ({e}), using default paths")
         use_case_id = 'pipeline_defects_detection'

@@ -30,11 +30,11 @@ class InteractiveChat:
         
     def load_config(self):
         """Load configuration and initialize LLM."""
-        # Read use-case-id from config.json
+        # Read default use case from config.json
         with open("config.json", "r") as f:
             main_config = json.load(f)
-        use_case_id = main_config.get("use-case-id", "pipeline_defects_detection")
-        config_path = f"config/{use_case_id}.yaml"
+        use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
+        config_path = f"config/{use_case_id}/config.yaml"
         
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
@@ -96,8 +96,9 @@ class InteractiveChat:
         
         # Initialize database client
         sqlite_cfg = self.config.get('sqlite', {})
+        schema = self.config.get('schema')
         db_path = sqlite_cfg.get('db_path', 'out/sql_data/detections.db')
-        self.db_client = SQLiteClient(db_path)
+        self.db_client = SQLiteClient(db_path, schema=schema)
         print(f"✅ Connected to database: {db_path}")
         
         return True
@@ -105,14 +106,22 @@ class InteractiveChat:
     def load_artifacts(self):
         """Load recent analysis artifacts."""
         try:
+            # Determine use-case output dir
+            with open("config.json", "r") as f:
+                main_config = json.load(f)
+            use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
+            out_dir = Path("out") / use_case_id / "agent"
+            
             # Load analysis summary
-            if Path("out/agent/analysis_summary.txt").exists():
-                with open("out/agent/analysis_summary.txt", "r") as f:
+            summary_path = out_dir / "analysis_summary.txt"
+            if summary_path.exists():
+                with open(summary_path, "r") as f:
                     self.analysis_summary = f.read()
             
             # Load evidence data
-            if Path("out/agent/evidence.json").exists():
-                with open("out/agent/evidence.json", "r") as f:
+            evidence_path = out_dir / "evidence.json"
+            if evidence_path.exists():
+                with open(evidence_path, "r") as f:
                     self.evidence_data = json.load(f)
                     
             return True
@@ -137,7 +146,17 @@ class InteractiveChat:
     
     def generate_sql_query(self, natural_language_query: str) -> str:
         """Convert natural language query to SQL using sqlcoder-7b-2 model."""
-        schema_info = self.sql_schema if self.sql_schema else "Table: detections with columns: id, frame_id, label, confidence, x, y, width, height, created_at"
+        if self.sql_schema:
+            schema_info = self.sql_schema
+        else:
+            # Auto-generate from config schema
+            cfg_schema = self.config.get('schema', {})
+            if cfg_schema:
+                cols = [f"{c['name']} ({c['type'].split()[0]})" for c in cfg_schema.get('columns', [])]
+                table = cfg_schema.get('table_name', 'detections')
+                schema_info = f"Table: {table} with columns: {', '.join(cols)}"
+            else:
+                schema_info = "Table: detections with columns: id, frame_id, label, confidence, x, y, width, height, created_at"
         
         prompt = f"""{schema_info}
 
@@ -276,8 +295,12 @@ SELECT"""
                     
                 elif current_mode == "2":
                     evidence_trail = ""
-                    if Path("out/agent/evidence_trail.txt").exists():
-                        with open("out/agent/evidence_trail.txt", "r") as f:
+                    with open("config.json", "r") as f:
+                        _mc = json.load(f)
+                    _ucid = _mc.get("default-use-case", "pipeline_defects_detection")
+                    _trail_path = Path("out") / _ucid / "agent" / "evidence_trail.txt"
+                    if _trail_path.exists():
+                        with open(_trail_path, "r") as f:
                             evidence_trail = f.read()
                     
                     prompt = f"Context:\n{evidence_trail}\n\nQuestion: {custom_q}\n\n{self.QA_INSTRUCTION}"

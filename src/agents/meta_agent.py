@@ -152,10 +152,10 @@ def collect_results(state: AgentState) -> Dict[str, Any]:
         },
         "analysis": {
             "total_defects": analysis_data.get("total_defects", 0),
-            "report_saved": "out/agent/analysis_report.json"
+            "report_saved": True
         },
         "evidence": {
-            "trail_saved": "out/agent/evidence_trail.txt",
+            "trail_saved": True,
             "audit_complete": True
         }
     }

@@ -107,8 +107,8 @@ echo ""
 echo "Step 4: Creating data directories..."
 echo ""
 
-mkdir -p out/sql_data
-echo -e "${GREEN}✓ SQL data directory created (out/sql_data/)${NC}"
+mkdir -p out
+echo -e "${GREEN}✓ SQL data directory created (out/)${NC}"
 echo ""
 
 # ============================================================
@@ -118,10 +118,8 @@ echo "Step 5: Creating output directories..."
 echo ""
 
 mkdir -p out
-mkdir -p out/viz
-mkdir -p out/agent
 
-echo -e "${GREEN}✓ Output directories created${NC}"
+echo -e "${GREEN}✓ Output directories created (per-use-case dirs created at runtime)${NC}"
 echo ""
 
 # ============================================================

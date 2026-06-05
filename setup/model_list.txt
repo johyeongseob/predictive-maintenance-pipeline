@@ -1,5 +1,6 @@
 [download]
-
+microsoft/Phi-4-mini-instruct
+defog/sqlcoder-7b-2
 
 [supported-models]
 microsoft/Phi-4-mini-instruct

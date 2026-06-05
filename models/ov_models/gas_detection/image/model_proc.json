@@ -1,0 +1,17 @@
+{
+    "json_schema_version": "2.0.0",
+    "input_preproc": [
+        {
+            "layer_name": "x",
+            "format": "image",
+            "color_format": "BGR"
+        }
+    ],
+    "output_postproc": [
+        {
+            "converter": "tensor_to_label",
+            "method": "softmax",
+            "labels": ["Mixture", "NoGas", "Perfume", "Smoke"]
+        }
+    ]
+}

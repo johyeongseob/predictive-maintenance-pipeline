@@ -47,10 +47,8 @@ def _broadcast(line: str):
 def _load_full_config():
     """Load the full YAML config file for the active use case."""
     try:
-        with open(PROJECT_ROOT / "config.json") as f:
-            main_cfg = json.load(f)
-        use_case = main_cfg.get("use-case-id", "pipeline_defects_detection")
-        cfg_path = PROJECT_ROOT / "config" / f"{use_case}.yaml"
+        use_case = _get_use_case_id()
+        cfg_path = PROJECT_ROOT / "config" / use_case / "config.yaml"
         if cfg_path.exists():
             import yaml
             with open(cfg_path) as f:
@@ -58,6 +56,31 @@ def _load_full_config():
     except Exception:
         logger.debug("Config load failed, falling back to empty config", exc_info=True)
     return {}
+
+
+def _get_use_case_id():
+    """Get the active use-case-id from config.json."""
+    try:
+        with open(PROJECT_ROOT / "config.json") as f:
+            cfg = json.load(f)
+        return cfg.get("default-use-case", "pipeline_defects_detection")
+    except Exception:
+        return "pipeline_defects_detection"
+
+
+def _get_use_cases():
+    """Get all available use cases from config.json."""
+    try:
+        with open(PROJECT_ROOT / "config.json") as f:
+            cfg = json.load(f)
+        return cfg.get("use-cases", [])
+    except Exception:
+        return []
+
+
+def _get_out_dir():
+    """Get the use-case-specific output directory."""
+    return PROJECT_ROOT / "out" / _get_use_case_id()
 
 
 def _load_inference_config():
@@ -163,7 +186,9 @@ def _get_chat():
 # ---------------------------------------------------------------------------
 @app.route("/")
 def index():
-    resp = app.make_response(render_template("index.html"))
+    cfg = _load_full_config()
+    display_text = cfg.get("display_text", "Predictive Maintenance Pipeline")
+    resp = app.make_response(render_template("index.html", display_text=display_text))
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     resp.headers['Pragma'] = 'no-cache'
     return resp
@@ -171,7 +196,17 @@ def index():
 
 @app.route("/api/predef-questions")
 def predef_questions():
-    """Return predefined questions from web_app/predef_questions.json."""
+    """Return predefined questions, preferring use-case-specific file."""
+    use_case_id = _get_use_case_id()
+    # Try use-case-specific file first
+    uc_qfile = PROJECT_ROOT / "config" / use_case_id / "predef_questions.json"
+    if uc_qfile.exists():
+        try:
+            with open(uc_qfile, "r", encoding="utf-8") as f:
+                return jsonify(json.load(f))
+        except Exception:
+            pass
+    # Fallback to web_app default
     qfile = Path(__file__).resolve().parent / "predef_questions.json"
     try:
         with open(qfile, "r", encoding="utf-8") as f:
@@ -183,9 +218,10 @@ def predef_questions():
 @app.route("/api/agent-output/<agent>")
 def agent_output(agent):
     """Return the text content of an agent output file."""
+    out_dir = _get_out_dir()
     file_map = {
-        "analysis": PROJECT_ROOT / "out" / "agent" / "analysis_summary.txt",
-        "evidence": PROJECT_ROOT / "out" / "agent" / "evidence_trail.txt",
+        "analysis": out_dir / "agent" / "analysis_summary.txt",
+        "evidence": out_dir / "agent" / "evidence_trail.txt",
     }
     path = file_map.get(agent)
     if not path or not path.exists():
@@ -213,8 +249,7 @@ def pipeline_start():
     inference_interval = int(data.get("inference_interval",
                                        inf_cfg.get("inference_interval", 1)))
     video_path = data.get("video_path",
-                          inf_cfg.get("video_path",
-                                      "datasets/pipeline_defects_detection/video/input.mp4"))
+                          inf_cfg.get("video_path", ""))
 
     t = threading.Thread(
         target=_run_pipeline,
@@ -229,15 +264,54 @@ def pipeline_start():
 def get_config():
     """Return inference config defaults for the UI."""
     cfg = _load_inference_config()
+    full_cfg = _load_full_config()
+    use_case_id = _get_use_case_id()
+    use_cases = _get_use_cases()
     return jsonify({
-        "input_mode": cfg.get("input_mode", "video"),
+        "use_case_id": use_case_id,
+        "display_text": full_cfg.get("display_text", use_case_id),
+        "use_cases": use_cases,
+        "input_mode": cfg.get("input_mode", "image"),
         "device": cfg.get("device", "GPU"),
         "inference_interval": cfg.get("inference_interval", 1),
-        "video_path": cfg.get("video_path",
-                              "datasets/pipeline_defects_detection/video/input.mp4"),
-        "images_path": cfg.get("images_path",
-                               "datasets/pipeline_defects_detection/val_seq"),
+        "video_path": cfg.get("video_path", ""),
+        "images_path": cfg.get("images_path", f"datasets/{use_case_id}/images/val"),
     })
+
+
+@app.route("/api/use-case", methods=["POST"])
+def set_use_case():
+    """Switch the active use case."""
+    global _chat_instance, _chat_error
+    data = request.get_json(force=True)
+    use_case_id = data.get("use_case_id", "").strip()
+    if not use_case_id:
+        return jsonify({"ok": False, "error": "Missing use_case_id"}), 400
+
+    # Validate it exists in the use-cases list
+    valid_ids = [uc["id"] for uc in _get_use_cases()]
+    if use_case_id not in valid_ids:
+        return jsonify({"ok": False, "error": f"Unknown use case: {use_case_id}"}), 400
+
+    # Update config.json
+    try:
+        cfg_path = PROJECT_ROOT / "config.json"
+        with open(cfg_path) as f:
+            cfg = json.load(f)
+        cfg["default-use-case"] = use_case_id
+        with open(cfg_path, "w") as f:
+            json.dump(cfg, f, indent=2)
+    except Exception:
+        # Do not include user-provided values in logs to prevent log injection
+        logging.error("Failed to update config.json", exc_info=True)
+        return jsonify({"ok": False, "error": "Failed to update configuration"}), 500
+
+    # Reset chat instance so it reloads for new use case
+    with _chat_lock:
+        _chat_instance = None
+        _chat_error = None
+
+    return jsonify({"ok": True, "use_case_id": use_case_id})
 
 
 @app.route("/api/pipeline/stream")
@@ -320,7 +394,7 @@ def chat_ask():
 
         elif mode == "evidence":
             evidence_trail = ""
-            trail_path = PROJECT_ROOT / "out" / "agent" / "evidence_trail.txt"
+            trail_path = _get_out_dir() / "agent" / "evidence_trail.txt"
             if trail_path.exists():
                 with open(trail_path, "r") as f:
                     evidence_trail = f.read()
@@ -332,23 +406,41 @@ def chat_ask():
             results = chat.execute_and_format_query(sql_query)
             answer = f"Generated SQL:\n{sql_query}\n\n{results}"
 
-            # Extract frame_ids from raw query results for frame display
-            frame_ids = []
+            # Extract image references from raw query results for frame/image display
+            image_refs = []
             try:
                 raw = chat.db_client.execute_query(sql_query)
                 if raw:
                     cols = list(raw[0].keys())
+                    seen = set()
                     if 'frame_id' in cols:
-                        seen = set()
+                        # Detection use case: frame_id -> frame_NNNNNN.jpg
                         for row in raw:
                             fid = row['frame_id']
                             if fid not in seen:
                                 seen.add(fid)
-                                frame_ids.append(fid)
+                                image_refs.append({
+                                    "id": fid,
+                                    "filename": f"frame_{fid:06d}.jpg",
+                                    "label": f"Frame {fid}"
+                                })
+                    elif 'source' in cols:
+                        # Classification use case: source -> stem.jpg
+                        from pathlib import Path as P
+                        for row in raw:
+                            src = row['source']
+                            if src and src not in seen:
+                                seen.add(src)
+                                viz_name = P(src).stem + '.jpg'
+                                image_refs.append({
+                                    "id": row.get('image_id', src),
+                                    "filename": viz_name,
+                                    "label": src
+                                })
             except Exception:
-                logger.debug("SQL query for frame IDs failed; non-critical", exc_info=True)
+                logger.debug("Image ref extraction failed; non-critical", exc_info=True)
 
-            return jsonify({"answer": answer, "frame_ids": frame_ids[:50]})
+            return jsonify({"answer": answer, "frame_ids": [r["id"] for r in image_refs[:50]], "image_refs": image_refs[:50]})
 
         else:
             return jsonify({"error": f"Unknown mode: {mode}"}), 400
@@ -363,7 +455,7 @@ def chat_ask():
 @app.route("/api/visualizations")
 def list_visualizations():
     """Return a list of visualization image paths."""
-    viz_dir = PROJECT_ROOT / "out" / "viz"
+    viz_dir = _get_out_dir() / "viz"
     if not viz_dir.exists():
         return jsonify({"images": []})
     images = sorted(
@@ -376,13 +468,13 @@ def list_visualizations():
 def serve_viz(filename):
     """Serve visualization images."""
     from flask import send_from_directory
-    return send_from_directory(str(PROJECT_ROOT / "out" / "viz"), filename)
+    return send_from_directory(str(_get_out_dir() / "viz"), filename)
 
 
 @app.route("/api/annotated-video")
 def annotated_video_info():
     """Check if annotated video exists."""
-    vid = PROJECT_ROOT / "out" / "annotated_output.mp4"
+    vid = _get_out_dir() / "annotated_output.mp4"
     if vid.exists():
         return jsonify({"exists": True,
                         "path": "/video/annotated_output.mp4",
@@ -394,7 +486,7 @@ def annotated_video_info():
 def serve_video(filename):
     """Serve output videos."""
     from flask import send_from_directory
-    return send_from_directory(str(PROJECT_ROOT / "out"), filename)
+    return send_from_directory(str(_get_out_dir()), filename)
 
 
 # ---------------------------------------------------------------------------
@@ -402,7 +494,7 @@ def serve_video(filename):
 # ---------------------------------------------------------------------------
 @app.route("/api/ticket/create", methods=["POST"])
 def ticket_create():
-    """Create a ticket for a specific frame."""
+    """Create a ticket for a specific frame/image."""
     data = request.get_json(force=True)
     frame_id = data.get("frame_id")
     if frame_id is None:
@@ -414,9 +506,10 @@ def ticket_create():
 
         full_cfg = _load_full_config()
         sqlite_cfg = full_cfg.get('sqlite', {})
+        schema = full_cfg.get('schema')
         db_path = sqlite_cfg.get('db_path', 'out/sql_data/detections.db')
-        db = SQLiteClient(db_path=db_path)
-        result = create_ticket(db, int(frame_id))
+        db = SQLiteClient(db_path=db_path, schema=schema)
+        result = create_ticket(db, frame_id)
         db.close()
         return jsonify(result)
     except Exception as e:
@@ -427,7 +520,7 @@ def ticket_create():
 @app.route("/api/tickets")
 def list_tickets():
     """List all available tickets."""
-    tickets_dir = PROJECT_ROOT / "out" / "tickets"
+    tickets_dir = _get_out_dir() / "tickets"
     tickets = []
     if tickets_dir.exists():
         for f in sorted(tickets_dir.glob("ticket_*.html")):
@@ -448,7 +541,7 @@ def list_tickets():
 def serve_ticket(filename):
     """Serve a ticket HTML file."""
     from flask import send_from_directory
-    tickets_dir = PROJECT_ROOT / "out" / "tickets"
+    tickets_dir = _get_out_dir() / "tickets"
     return send_from_directory(str(tickets_dir), filename)
 
 

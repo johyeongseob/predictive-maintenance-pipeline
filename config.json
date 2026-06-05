@@ -1,3 +1,13 @@
 {
-  "use-case-id": "pipeline_defects_detection"
+  "default-use-case": "gas_detection",
+  "use-cases": [
+    {
+      "id": "pipeline_defects_detection",
+      "display_text": "Pipeline Defects Detection"
+    },
+    {
+      "id": "gas_detection",
+      "display_text": "Gas Classification - Multi-modal"
+    }
+  ]
 }

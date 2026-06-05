@@ -2,8 +2,21 @@
 """
 Download a dataset from a given URL and prepare train/val splits.
 
-Splits the dataset randomly: 90% train, 10% val.
-Places data in: datasets/{use-case-id}/ (use-case-id read from config.json)
+The active use case is read from config.json ("default-use-case" key).
+The preparation logic is use-case-specific:
+
+  pipeline_defects_detection
+      Splits the dataset randomly (default 90/10) into YOLO detection format:
+        datasets/pipeline_defects_detection/images/{train,val}/
+        datasets/pipeline_defects_detection/labels/{train,val}/
+      Also creates a video from the val images.
+
+  gas_detection
+      Stratified 80/20 split per gas class (Mixture, NoGas, Perfume, Smoke):
+        datasets/gas_detection/images/train/{class}/   (YOLO classification format)
+        datasets/gas_detection/images/val/             (flat, for PACE inference)
+      Sensor CSV (if present in the archive) is copied to:
+        datasets/gas_detection/sensor_data/
 
 IMPORTANT DISCLAIMER:
     By using this script, you acknowledge that YOU are solely responsible for
@@ -15,8 +28,11 @@ Usage:
     conda activate pace
     python scripts/download_and_prep_data.py <dataset_url>
 
-    # Example with Kaggle dataset
+    # Pipeline defect dataset (Kaggle)
     python scripts/download_and_prep_data.py "https://www.kaggle.com/api/v1/datasets/download/simplexitypipeline/pipeline-defect-dataset"
+
+    # Gas detection dataset (Mendeley)
+    python scripts/download_and_prep_data.py "https://data.mendeley.com/public-api/zip/zkwgkjkjn9/download/2"
 
     # Custom split ratio
     python scripts/download_and_prep_data.py "https://example.com/dataset.zip" --train-ratio 0.8
@@ -40,6 +56,8 @@ except ImportError:
     cv2 = None
 
 
+GAS_DETECTION_CLASSES = ["Mixture", "NoGas", "Perfume", "Smoke"]
+
 DISCLAIMER = """
 ⚠️  DISCLAIMER: By using this script, you acknowledge that YOU are solely
     responsible for ensuring you have the necessary rights, permissions, and
@@ -48,7 +66,7 @@ DISCLAIMER = """
 """
 
 
-def download_dataset(dataset_url: str, download_dir: Path) -> Path:
+def download_dataset(dataset_url: str, download_dir: Path, zip_name: str = "dataset.zip") -> Path:
     """Download the dataset from the given URL using curl."""
     print("📥 Downloading dataset...")
     print(f"   URL: {dataset_url}")
@@ -56,7 +74,7 @@ def download_dataset(dataset_url: str, download_dir: Path) -> Path:
     print()
 
     download_dir.mkdir(parents=True, exist_ok=True)
-    zip_path = download_dir / "pipeline-defect-dataset.zip"
+    zip_path = download_dir / zip_name
 
     try:
         cmd = [
@@ -159,6 +177,116 @@ def copy_pairs(pairs: list, dest_images_dir: Path, dest_labels_dir: Path, split_
     print(f"   ✅ {split_name}: {len(pairs)} images copied")
 
 
+def find_gas_images_by_class(source_dir: Path) -> dict:
+    """Find all images in source_dir and group by gas class.
+
+    Expects a flat directory (or nested) with files named {serial}_{ClassName}.png,
+    e.g. 586_Perfume.png, 0_NoGas.png.  The class name is the last
+    underscore-delimited token of the filename stem.
+
+    Returns:
+        Dict mapping class_name -> sorted list of Path objects.
+    """
+    class_files = {cls: [] for cls in GAS_DETECTION_CLASSES}
+
+    for f in source_dir.rglob('*'):
+        if f.is_file() and f.suffix.lower() in {'.png', '.jpg', '.jpeg'}:
+            parts = f.stem.rsplit('_', 1)
+            if len(parts) == 2 and parts[1] in class_files:
+                class_files[parts[1]].append(f)
+
+    for cls in GAS_DETECTION_CLASSES:
+        class_files[cls].sort(key=lambda p: p.name)
+
+    return class_files
+
+
+def prep_gas_detection(download_dir: Path, output_dir: Path,
+                       train_ratio: float, seed: int) -> tuple:
+    """Prepare the gas detection dataset.
+
+    Stratified split per class, producing:
+      images/train/{class}/  — YOLO classification training format
+      images/val/            — flat directory for PACE inference
+      sensor_data/           — sensor CSV(s) copied from the archive
+
+    Args:
+        download_dir: Root of the extracted archive.
+        output_dir:   Destination dataset directory.
+        train_ratio:  Fraction of each class used for training.
+        seed:         Random seed for reproducibility.
+
+    Returns:
+        (n_train, n_val) counts.
+    """
+    print("🔍 Scanning for gas detection images...")
+    class_files = find_gas_images_by_class(download_dir)
+
+    total = sum(len(v) for v in class_files.values())
+    if total == 0:
+        print("❌ No gas detection images found in the downloaded archive.")
+        print(f"   Expected files named {{serial}}_{{ClassName}}.png inside:")
+        print(f"   {download_dir}")
+        sys.exit(1)
+
+    for cls in GAS_DETECTION_CLASSES:
+        print(f"   {cls}: {len(class_files[cls])} images")
+    print()
+
+    # Stratified split
+    print(f"🔀 Stratified split (seed={seed}, "
+          f"train={train_ratio:.0%} / val={1 - train_ratio:.0%})...")
+    random.seed(seed)
+    train_files: dict = {}
+    val_files: dict = {}
+    for cls, files in class_files.items():
+        shuffled = files.copy()
+        random.shuffle(shuffled)
+        idx = int(len(shuffled) * train_ratio)
+        train_files[cls] = shuffled[:idx]
+        val_files[cls] = shuffled[idx:]
+        print(f"   {cls}: {len(train_files[cls])} train, {len(val_files[cls])} val")
+    print()
+
+    # Copy training images: images/train/{class}/ (YOLO classification format)
+    print("📂 Organizing dataset...")
+    for cls, files in train_files.items():
+        dest = output_dir / "images" / "train" / cls
+        dest.mkdir(parents=True, exist_ok=True)
+        for f in files:
+            shutil.copy2(f, dest / f.name)
+    n_train = sum(len(v) for v in train_files.values())
+    print(f"   ✅ train: {n_train} images  →  images/train/{{class}}/")
+
+    # Copy validation images: flat images/val/ (for PACE inference)
+    # Filenames encode the class (e.g. 586_Perfume.png) so class info is not lost.
+    val_dir = output_dir / "images" / "val"
+    val_dir.mkdir(parents=True, exist_ok=True)
+    n_val = 0
+    for cls, files in val_files.items():
+        for f in files:
+            shutil.copy2(f, val_dir / f.name)
+            n_val += 1
+    print(f"   ✅ val:   {n_val} images  →  images/val/ (flat, for inference)")
+    print()
+
+    # Copy sensor CSV(s) from the archive
+    print("📊 Looking for sensor data CSV...")
+    csv_files = list(download_dir.rglob('*.csv'))
+    if csv_files:
+        sensor_dir = output_dir / "sensor_data"
+        sensor_dir.mkdir(parents=True, exist_ok=True)
+        for csv_f in csv_files:
+            shutil.copy2(csv_f, sensor_dir / csv_f.name)
+            print(f"   ✅ {csv_f.name}  →  sensor_data/")
+    else:
+        print("   ⚠️  No CSV found in archive — place sensor data manually at:")
+        print(f"        {output_dir}/sensor_data/Gas_Sensors_Measurements.csv")
+    print()
+
+    return n_train, n_val
+
+
 def create_video_from_images(images_dir: Path, video_path: Path, fps: int = 30):
     """Create an MP4 video from all .jpg images in a directory.
     
@@ -225,11 +353,11 @@ Examples:
         type=str,
         help="URL to download the dataset from (e.g. a Kaggle dataset URL)"
     )
-    # Read use-case-id from config.json for default output path
+    # Read default use case from config.json for default output path
     config_path = Path("config.json")
     if config_path.exists():
         with open(config_path) as f:
-            use_case_id = json.load(f).get("use-case-id", "pipeline_defects_detection")
+            use_case_id = json.load(f).get("default-use-case", "pipeline_defects_detection")
     else:
         use_case_id = "pipeline_defects_detection"
     default_output = f"datasets/{use_case_id}"
@@ -263,23 +391,61 @@ Examples:
     output_dir = Path(args.output)
     download_dir = output_dir / "_raw_download"
 
-    # Check if dataset already exists
-    if output_dir.exists() and (output_dir / "images").exists():
-        print(f"✅ Dataset already available at {output_dir}, skipping download.")
-        return
-
     print(DISCLAIMER)
     print("=" * 70)
     print("Dataset — Download & Prepare")
     print("=" * 70)
+    print(f"  Use case:      {use_case_id}")
     print(f"  Output dir:    {output_dir}")
     print(f"  Train ratio:   {args.train_ratio:.0%}")
     print(f"  Val ratio:     {1 - args.train_ratio:.0%}")
     print(f"  Random seed:   {args.seed}")
     print()
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Gas detection use case
+    # ──────────────────────────────────────────────────────────────────────────
+    if use_case_id == "gas_detection":
+        # Skip if already prepared
+        if output_dir.exists() and (output_dir / "images" / "val").exists():
+            print(f"✅ Dataset already available at {output_dir}, skipping download.")
+            return
+
+        # Step 1: Download
+        download_dataset(args.dataset_url, download_dir, zip_name="gas-dataset.zip")
+
+        # Step 2 + 3: Stratified split and copy
+        n_train, n_val = prep_gas_detection(
+            download_dir, output_dir, args.train_ratio, args.seed
+        )
+
+        # Step 4: Clean up raw download
+        if not args.keep_download:
+            print("🧹 Cleaning up raw download...")
+            shutil.rmtree(download_dir, ignore_errors=True)
+            print("   ✅ Raw download removed\n")
+
+        # Summary
+        print("=" * 70)
+        print("✅ Dataset ready!")
+        print("=" * 70)
+        print(f"  📁 {output_dir}/images/train/{{class}}/  ({n_train} images, YOLO cls format)")
+        print(f"  📁 {output_dir}/images/val/             ({n_val} images, flat for inference)")
+        print(f"  📁 {output_dir}/sensor_data/            (sensor CSV)")
+        print()
+        return
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Pipeline defects detection use case (default)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    # Check if dataset already exists
+    if output_dir.exists() and (output_dir / "images").exists():
+        print(f"✅ Dataset already available at {output_dir}, skipping download.")
+        return
+
     # Step 1: Download
-    download_dataset(args.dataset_url, download_dir)
+    download_dataset(args.dataset_url, download_dir, zip_name="pipeline-defect-dataset.zip")
 
     # Step 2: Find all image/label pairs in the downloaded data
     print("🔍 Scanning for images and labels...")

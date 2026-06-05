@@ -39,8 +39,10 @@ def policy_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     
     # Save policy
     import os
-    os.makedirs("out/agent", exist_ok=True)
-    with open("out/agent/policy.json", "w") as f:
+    out_dir = resources.get("out_dir", "out")
+    agent_dir = f"{out_dir}/agent"
+    os.makedirs(agent_dir, exist_ok=True)
+    with open(f"{agent_dir}/policy.json", "w") as f:
         json.dump(policy, f, indent=2)
     
     elapsed = time.time() - start_time

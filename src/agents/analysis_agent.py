@@ -60,10 +60,12 @@ def analysis_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     }
     
     # Save outputs
-    os.makedirs("out/agent", exist_ok=True)
-    with open("out/agent/analysis_report.json", "w") as f:
+    out_dir = resources.get("out_dir", "out")
+    agent_dir = f"{out_dir}/agent"
+    os.makedirs(agent_dir, exist_ok=True)
+    with open(f"{agent_dir}/analysis_report.json", "w") as f:
         json.dump(analysis, f, indent=2)
-    with open("out/agent/analysis_summary.txt", "w") as f:
+    with open(f"{agent_dir}/analysis_summary.txt", "w") as f:
         f.write(summary_text)
     
     elapsed = time.time() - start_time

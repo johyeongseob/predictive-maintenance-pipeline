@@ -27,13 +27,16 @@ pace/
 Thumbs.db
 
 # Datasets (large files)
-datasets/train_seq/
-datasets/pipeline_defects_detection/val_seq/
 datasets/*/images/
 datasets/*/labels/
+datasets/*/sensor_data/
+
+# Temporary sequential image links (created during DLStreamer inference)
+.tmp_seq_images/
 
 # Models (large files)
-models/pt_models/*.pt
+models/pt_models/**/*.pt
+models/pt_models/**/*.onnx
 models/ov_models/**/*.bin
 models/ov_models/**/*.xml
 models/ov_models/**/*.mapping
@@ -44,7 +47,6 @@ data/
 out/
 *.jsonl
 *.log
-*.html
 
 # Temporary files
 *.tmp
