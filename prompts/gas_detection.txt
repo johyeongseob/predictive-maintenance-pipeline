@@ -54,7 +54,12 @@ Generate a professional text report with these exact sections:
    - Mean Confidence: Format to exactly 3 decimal places (e.g., 0.546, 0.877)
    - Status: HIGH if confidence >= 0.8, MEDIUM if >= 0.6, LOW otherwise
    - Sort by count descending
-4. KEY FINDINGS section with bullet points covering:
+4. Sensor Statistics section with exactly 4 compact bullets:
+   - Image confidence: mean [value], range [min]-[max]
+   - Sensor confidence: mean [value], range [min]-[max]
+   - Modality dominance: one compact per-class line including class names, e.g., NoGas image=[n] sensor=[n] tie=[n]
+   - Sensor alert samples: [count]; by channel: [channel=count]
+5. KEY FINDINGS section with bullet points covering:
    - Most frequently detected gas type
    - High confidence classifications (>= 0.9) if any
    - Environmental safety assessment (presence of hazardous gases)
@@ -62,9 +67,11 @@ Generate a professional text report with these exact sections:
 
 IMPORTANT:
 - Use actual data from the provided statistics, do NOT use placeholders
+- Do not describe NoGas as hazardous.
 - Format mean confidence values to EXACTLY 3 decimal places, no more
 - Format with proper text alignment and borders using - and = characters
 - Keep it concise and professional
+- Do not add a Note section.
 - Return ONLY the report text, no additional notes or comments
 
 [EVIDENCE]
