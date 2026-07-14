@@ -1,0 +1,302 @@
+[
+  {
+    "id": "analysis_01",
+    "question": "Summarize the analysis in 3 bullet points.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_02",
+    "question": "Explain the key findings from this run.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_03",
+    "question": "Interpret the analysis report briefly.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_04",
+    "question": "Describe the main safety concern in this run.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_05",
+    "question": "Outline the overall gas detection result.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_06",
+    "question": "Assess the trends observed from the analysis.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_07",
+    "question": "Identify the major risks reported in the analysis.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_08",
+    "question": "Highlight the gas class with the highest confidence.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_09",
+    "question": "Discuss what the analysis summary says about hazardous gases.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_10",
+    "question": "Report the detection results concisely.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_11",
+    "question": "Summarize the gas classification outcome.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_12",
+    "question": "Explain which gas type appears most often in the analysis.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_13",
+    "question": "Interpret the environmental safety assessment.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_14",
+    "question": "Describe the confidence status for each gas class.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_15",
+    "question": "Outline the main observations from the analysis summary.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_16",
+    "question": "Assess whether hazardous gases were detected.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_17",
+    "question": "Identify the gas classes mentioned in the analysis.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_18",
+    "question": "Highlight the sensor-image agreement finding.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_19",
+    "question": "Discuss the confidence levels reported in the analysis.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "analysis_20",
+    "question": "Report the main analysis findings in one paragraph.",
+    "expected_mode": "analysis"
+  },
+  {
+    "id": "evidence_01",
+    "question": "Review the policy used for this run.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_02",
+    "question": "Inspect the thresholds applied in this run.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_03",
+    "question": "Trace the evidence trail for this run.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_04",
+    "question": "Verify whether database storage was enabled.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_05",
+    "question": "Audit the run status from the evidence trail.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_06",
+    "question": "Check the timestamp in the audit trail.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_07",
+    "question": "Examine the policy thresholds used for each class.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_08",
+    "question": "Confirm how many classifications were kept.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_09",
+    "question": "Document the traceability storage for the results.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_10",
+    "question": "Validate the classification scope in the evidence trail.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_11",
+    "question": "Review the global threshold used by the policy.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_12",
+    "question": "Inspect the per-class policy thresholds.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_13",
+    "question": "Trace where the evidence artifacts were stored.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_14",
+    "question": "Verify the number of classifications kept by the policy.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_15",
+    "question": "Audit the database storage status for this run.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_16",
+    "question": "Check the run completion status in the audit trail.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_17",
+    "question": "Examine the threshold assigned to each gas class.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_18",
+    "question": "Confirm the timestamp recorded in the evidence trail.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_19",
+    "question": "Document the traceability information for this run.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "evidence_20",
+    "question": "Validate the policy decision details for this run.",
+    "expected_mode": "evidence"
+  },
+  {
+    "id": "sql_01",
+    "question": "Query images classified as Smoke with confidence above 0.5.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_02",
+    "question": "Count the Smoke detections in the database.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_03",
+    "question": "List all detections with confidence above 0.9.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_04",
+    "question": "Filter detections where confidence is below 0.7.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_05",
+    "question": "Calculate the mean confidence of the Smoke class.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_06",
+    "question": "Retrieve images classified as NoGas.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_07",
+    "question": "Rank detections by confidence.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_08",
+    "question": "Select all Mixture samples from the database.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_09",
+    "question": "Find images classified as Perfume.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_10",
+    "question": "Aggregate detections by gas class.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_11",
+    "question": "Query all detections labeled Smoke.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_12",
+    "question": "Count the Perfume samples in the database.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_13",
+    "question": "List image IDs with confidence greater than 0.95.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_14",
+    "question": "Filter NoGas records by confidence above 0.9.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_15",
+    "question": "Calculate the average confidence for each gas class.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_16",
+    "question": "Retrieve the lowest confidence detections.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_17",
+    "question": "Rank gas classes by detection count.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_18",
+    "question": "Select detections where the label is Mixture.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_19",
+    "question": "Find the maximum confidence value in the database.",
+    "expected_mode": "sql"
+  },
+  {
+    "id": "sql_20",
+    "question": "Aggregate the mean confidence by label.",
+    "expected_mode": "sql"
+  }
+]

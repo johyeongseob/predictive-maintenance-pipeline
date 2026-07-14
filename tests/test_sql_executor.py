@@ -5,9 +5,10 @@ Compare performance with VDMS template-based approach.
 """
 
 import yaml
+import json
 from src.agents.utility.openvino_llm import OpenVINOLLM
 from src.utility.sqlite_client import SQLiteClient
-from src.agents.sql_query_executor import SQLQueryExecutor
+from src.agents.utility.sql_query_executor import SQLQueryExecutor
 
 # Reuse same test queries (natural language only)
 TEST_QUERIES = [
@@ -64,6 +65,85 @@ TEST_QUERIES = [
     "show 10 lowest confidence detections",
     "worst 5 detections by confidence",
 ]
+
+
+def load_gas_config():
+    """Load the gas detection config used by the sensor-column tests."""
+    with open("config/gas_detection/config.yaml", "r") as f:
+        return yaml.safe_load(f)
+
+
+def load_gas_sensor_schema():
+    """Load the gas detection schema used by the sensor-column tests."""
+    return load_gas_config()["schema"]
+
+def test_insert_and_query_sensor_data(tmp_path):
+    """Insert one gas row with sensor data and query it back."""
+    db_path = tmp_path / "detections.db"
+    sqlite_client = SQLiteClient(db_path=str(db_path), schema=load_gas_sensor_schema())
+
+    sensor_values = {
+        "MQ2": 786.0,
+        "MQ3": 530.0,
+        "MQ5": 464.0,
+        "MQ6": 262.0,
+        "MQ7": 590.0,
+        "MQ8": 701.0,
+        "MQ135": 420.0,
+    }
+    sqlite_client.insert_detection(
+        image_id=0,
+        source="1000_NoGas.png",
+        label="NoGas",
+        confidence=0.974309,
+        image_confidence=0.976074,
+        sensor_confidence=0.971438,
+        sensor_raw_json=sensor_values,
+    )
+
+    rows = sqlite_client.execute_query(
+        "SELECT sensor_confidence, sensor_raw_json FROM detections WHERE label = ?",
+        ("NoGas",),
+    )
+    sqlite_client.close()
+
+    assert len(rows) == 1
+    assert rows[0]["sensor_confidence"] == 0.971438
+    assert json.loads(rows[0]["sensor_raw_json"])["MQ2"] == 786.0
+
+
+def test_sqlcoder_generates_sensor_confidence_query(tmp_path):
+    """Run a sensor-confidence question through SQLQueryExecutor and inspect SQL."""
+    gas_config = load_gas_config()
+    sql_config = gas_config.get("sql", {})
+    db_path = tmp_path / "detections.db"
+    sqlite_client = SQLiteClient(db_path=str(db_path), schema=gas_config["schema"])
+    sqlite_client.insert_detection(
+        image_id=0,
+        source="1000_NoGas.png",
+        label="NoGas",
+        confidence=0.974309,
+        image_confidence=0.976074,
+        sensor_confidence=0.971438,
+        sensor_raw_json={"MQ2": 786.0},
+    )
+
+    llm = OpenVINOLLM(
+        model_path=sql_config.get("model_id", "models/ov_models/llms/sqlcoder-7b-2-int4cw"),
+        device=sql_config.get("device", "GPU"),
+        verbose=False,
+    )
+    executor = SQLQueryExecutor(sqlite_client, llm)
+    
+    _, sql, raw_results = executor.execute_natural_language_query(
+        "show me all samples with sensor confidence > 0.8",
+        format_output=False,
+    )
+    sqlite_client.close()
+
+    assert "sensor_confidence" in sql.lower()
+    assert "> 0.8" in sql
+    assert len(raw_results) == 1
 
 
 def run_sql_tests():

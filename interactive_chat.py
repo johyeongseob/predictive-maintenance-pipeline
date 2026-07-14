@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Interactive chat interface for PACE pipeline analysis.
-Provides menu-driven interaction with pre-cached responses for common queries.
+Provides a unified question prompt with automatic intent routing.
 """
 
 import sys
@@ -10,8 +10,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import json
 import yaml
+import re
 from src.agents.utility.openvino_llm import OpenVINOLLM, RemoteLLM
 from src.utility import load_prompts
+from src.utility.chat_intent import classify_intent_keyword, classify_intent_with_llm
 from src.utility.sqlite_client import SQLiteClient
 
 
@@ -146,23 +148,21 @@ class InteractiveChat:
     
     def generate_sql_query(self, natural_language_query: str) -> str:
         """Convert natural language query to SQL using sqlcoder-7b-2 model."""
-        if self.sql_schema:
+        if self.db_client and hasattr(self.db_client, "get_schema_with_sensor_columns"):
+            schema_info = self.db_client.get_schema_with_sensor_columns()
+        elif self.sql_schema:
             schema_info = self.sql_schema
+        elif self.db_client:
+            schema_info = self.db_client.get_schema()
         else:
-            # Auto-generate from config schema
-            cfg_schema = self.config.get('schema', {})
-            if cfg_schema:
-                cols = [f"{c['name']} ({c['type'].split()[0]})" for c in cfg_schema.get('columns', [])]
-                table = cfg_schema.get('table_name', 'detections')
-                schema_info = f"Table: {table} with columns: {', '.join(cols)}"
-            else:
-                schema_info = "Table: detections with columns: id, frame_id, label, confidence, x, y, width, height, created_at"
+            schema_info = "Table: detections with columns: id, frame_id, label, confidence, x, y, width, height, created_at"
         
         prompt = f"""{schema_info}
 
 Question: {natural_language_query}
 
 Generate a SQLite query to answer this question. Return ONLY the SQL query without explanation.
+Use SQLite syntax only. Do not use ILIKE; use LIKE or exact equality instead.
 
 SELECT"""
         
@@ -187,6 +187,7 @@ SELECT"""
             sql_query = sql_query.split(";")[0] + ";"
         
         sql_query = sql_query.strip()
+        sql_query = re.sub(r"\bILIKE\b", "LIKE", sql_query, flags=re.IGNORECASE)
         return sql_query
     
     def execute_and_format_query(self, sql_query: str) -> str:
@@ -229,19 +230,33 @@ SELECT"""
             
         except Exception as e:
             return f"❌ Error executing query: {e}"
-    
-    def show_main_menu(self):
-        """Display main menu."""
-        print("\n" + "="*70)
-        print("PACE INTERACTIVE ANALYSIS")
-        print("="*70)
-        print("\n📋 Menu:")
-        print("  1. Ask analysis agent")
-        print("  2. Ask evidence agent")
-        print("  3. Ask something else (SQL)")
-        print("  0. Exit")
-        print()
-    
+
+    def answer_question_by_mode(self, question: str, mode: str, show_thinking: bool = True) -> str:
+        """Answer a question with the selected chat backend."""
+        if mode == "analysis":
+            prompt = f"Context:\n{self.analysis_summary}\n\nQuestion: {question}\n\n{self.QA_INSTRUCTION}"
+            return self.ask_question(prompt, show_thinking=show_thinking)
+
+        if mode == "evidence":
+            evidence_trail = ""
+            with open("config.json", "r") as f:
+                main_config = json.load(f)
+            use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
+            trail_path = Path("out") / use_case_id / "agent" / "evidence_trail.txt"
+            if trail_path.exists():
+                with open(trail_path, "r") as f:
+                    evidence_trail = f.read()
+
+            prompt = f"Context:\n{evidence_trail}\n\nQuestion: {question}\n\n{self.QA_INSTRUCTION}"
+            return self.ask_question(prompt, show_thinking=show_thinking)
+
+        if mode == "sql":
+            sql_query = self.generate_sql_query(question)
+            results = self.execute_and_format_query(sql_query)
+            return f"Generated SQL:\n{sql_query}\n\n{results}"
+
+        return f"Unknown mode: {mode}"
+
     def run(self):
         """Main interaction loop."""
         print("\n" + "="*70)
@@ -258,62 +273,26 @@ SELECT"""
             print("   python run_complete_pipeline.py --num-images 50 --device CPU")
             return
         
-        current_mode = None
+        print("\nType 'exit' or 'quit' to leave.\n")
         
         # Main interaction loop
         while True:
-            # Show menu if no mode selected
-            if current_mode is None:
-                self.show_main_menu()
-                choice = input("Choose an option: ").strip()
-                
-                if choice == "0":
-                    print("\n👋 Goodbye!")
-                    break
-                elif choice in ["1", "2", "3"]:
-                    current_mode = choice
-                    print(f"\n💡 Type 'menu' to return to main menu\n")
-                else:
-                    print("❌ Invalid option")
-                    continue
-            
-            # Get question in current mode
-            if current_mode:
-                custom_q = input("💬 Your question: ").strip()
-                
-                if custom_q.lower() == "menu":
-                    current_mode = None
-                    continue
-                elif not custom_q:
-                    continue
-                
-                # Process based on mode
-                if current_mode == "1":
-                    prompt = f"Context:\n{self.analysis_summary}\n\nQuestion: {custom_q}\n\n{self.QA_INSTRUCTION}"
-                    response = self.ask_question(prompt, show_thinking=True)
-                    print(f"\n{response}\n")
-                    
-                elif current_mode == "2":
-                    evidence_trail = ""
-                    with open("config.json", "r") as f:
-                        _mc = json.load(f)
-                    _ucid = _mc.get("default-use-case", "pipeline_defects_detection")
-                    _trail_path = Path("out") / _ucid / "agent" / "evidence_trail.txt"
-                    if _trail_path.exists():
-                        with open(_trail_path, "r") as f:
-                            evidence_trail = f.read()
-                    
-                    prompt = f"Context:\n{evidence_trail}\n\nQuestion: {custom_q}\n\n{self.QA_INSTRUCTION}"
-                    response = self.ask_question(prompt, show_thinking=True)
-                    print(f"\n{response}\n")
-                    
-                elif current_mode == "3":
-                    sql_query = self.generate_sql_query(custom_q)
-                    print(f"\n📝 Generated SQL:\n{sql_query}\n")
-                    results = self.execute_and_format_query(sql_query)
-                    print(results)
-                    print()
+            custom_q = input("💬 Your question: ").strip()
+            if custom_q.lower() in {"exit", "quit"}:
+                  print("\n👋 Goodbye!")
+                  break
+            if not custom_q:
+                continue
 
+            detected_mode = classify_intent_keyword(custom_q)
+            print(f"[Detected: {detected_mode}]")
+
+            response = self.answer_question_by_mode(
+                custom_q,
+                detected_mode,
+                show_thinking=True
+            )
+            print(f"\n{response}\n")
 
 if __name__ == "__main__":
     chat = InteractiveChat()

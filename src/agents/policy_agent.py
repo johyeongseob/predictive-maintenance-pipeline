@@ -61,7 +61,7 @@ Available defect classes: {', '.join(class_names)}
 
 global minimum confidence threshold is {config.get("agents", {}).get("confidence_threshold", None)}.
 
-Return JSON with keys: min_conf_global, per_class_thresholds, bbox_min_size"""
+Return JSON with keys: min_conf_global, per_class_thresholds, bbox_min_size, min_sensor_confidence, sensor_alert_thresholds"""
     
     # Use more tokens for reasoning models to allow for thinking + answer
     max_tokens = 2048 if 'reasoning' in str(llm).lower() or 'deepseek-r1' in str(llm).lower() else 1024
@@ -102,5 +102,7 @@ def _fallback_policy(config: Dict) -> Dict:
         return {
             "min_conf_global": agents_cfg.get("confidence_threshold", 0.4),
             "per_class_thresholds": agents_cfg.get("per_class_thresholds", {}),
-            "bbox_min_size": agents_cfg.get("bbox_min_size", {"width": 0, "height": 0})
+            "bbox_min_size": agents_cfg.get("bbox_min_size", {"width": 0, "height": 0}),
+            "min_sensor_confidence": agents_cfg.get("min_sensor_confidence", 0.5),
+            "sensor_alert_thresholds": agents_cfg.get("sensor_alert_thresholds", {})
         }

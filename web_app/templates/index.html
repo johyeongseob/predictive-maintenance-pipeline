@@ -81,6 +81,10 @@ button:disabled{opacity:.45;cursor:not-allowed}
 /* ── Chat ──────────────────────────────────────────────────────────── */
 .chat-container{display:flex;flex-direction:column;height:calc(100vh - 210px);min-height:400px}
 .chat-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.chat-header h2{margin-right:auto}
+.clear-chat-btn{padding:7px 14px;border-radius:20px;font-size:.82rem;font-weight:600;
+  background:transparent;border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:.2s}
+.clear-chat-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(108,140,255,.08)}
 .mode-btn{padding:7px 16px;border-radius:20px;font-size:.82rem;font-weight:600;
   background:var(--surface2);border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:.2s}
 .mode-btn:hover{border-color:var(--accent);color:var(--text)}
@@ -95,8 +99,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .msg.user{align-self:flex-end;background:var(--accent2);color:#fff;border-bottom-right-radius:4px}
 .msg.assistant{align-self:flex-start;background:var(--surface2);color:var(--text);border-bottom-left-radius:4px}
 .msg.system{align-self:center;background:none;color:var(--text2);font-size:.82rem;text-align:center;padding:6px 0}
+.mode-badge{display:inline-flex;align-items:center;width:max-content;margin-bottom:8px;
+  padding:3px 9px;border-radius:14px;border:1px solid var(--border);
+  color:var(--accent);background:rgba(108,140,255,.12);font-size:.72rem;font-weight:700}
 .msg.assistant .sql-block{background:#0c0e14;border:1px solid var(--border);border-radius:8px;
   padding:10px 14px;margin:8px 0;font-family:'JetBrains Mono',monospace;font-size:.8rem;color:#c8ccd8}
+.msg.assistant .sql-table-wrap{max-width:100%;overflow-x:auto;margin:10px 0;border:1px solid var(--border);border-radius:8px}
+.msg.assistant .sql-result-table{width:100%;border-collapse:collapse;background:#0c0e14;font-size:.78rem}
+.msg.assistant .sql-result-table th,.msg.assistant .sql-result-table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top}
+.msg.assistant .sql-result-table th{color:var(--accent);font-weight:700;background:rgba(108,140,255,.08)}
+.msg.assistant .sql-result-table td{color:#c8ccd8}
+.msg.assistant .sql-result-table tr:last-child td{border-bottom:none}
 .msg.assistant .sql-frames{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:10px}
 .msg.assistant .sql-frames .frame-card{display:flex;flex-direction:column;gap:6px}
 .msg.assistant .sql-frames img{width:100%;border-radius:6px;border:1px solid var(--border);cursor:pointer;transition:.2s}
@@ -145,6 +158,12 @@ button:disabled{opacity:.45;cursor:not-allowed}
   justify-content:center;z-index:100;cursor:zoom-out}
 .lightbox.show{display:flex}
 .lightbox img{max-width:92vw;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:120}
+.modal-backdrop.show{display:flex}
+.ticket-modal{width:min(440px,92vw);background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:20px;box-shadow:0 14px 50px rgba(0,0,0,.45)}
+.ticket-modal h3{font-size:1.05rem;color:var(--accent);margin-bottom:8px}
+.ticket-modal p{color:var(--text2);font-size:.9rem;margin-bottom:14px;white-space:normal;word-break:break-word}
+.ticket-modal .modal-actions{display:flex;justify-content:flex-end;gap:10px}
 
 /* ── Responsive ────────────────────────────────────────────────────── */
 @media(max-width:700px){
@@ -237,30 +256,16 @@ button:disabled{opacity:.45;cursor:not-allowed}
   <div class="card chat-container">
     <div class="chat-header">
       <h2 style="margin-bottom:0"><span class="icon">💬</span> Interactive Chat</h2>
-      <div style="display:flex;gap:6px;margin-left:auto">
-        <button class="mode-btn active" data-mode="analysis">Analysis Agent</button>
-        <button class="mode-btn" data-mode="evidence">Evidence Agent</button>
-        <button class="mode-btn" data-mode="sql">Database Query</button>
-      </div>
+      <button class="clear-chat-btn" type="button" onclick="clearChatHistory()">Clear Chat</button>
     </div>
 
-    <div class="messages" id="chatMessages-analysis">
-      <div class="msg system">Ask a question about the pipeline detection analysis.</div>
+    <div class="messages" id="chatMessages">
+      <div class="msg system">Ask a question. The backend will route it automatically.</div>
     </div>
-    <div class="messages" id="chatMessages-evidence" style="display:none">
-      <div class="msg system">Ask a question to review evidence and audit trails.</div>
-    </div>
-    <div class="messages" id="chatMessages-sql" style="display:none">
-      <div class="msg system">Ask a natural-language question — it will be converted to SQL.</div>
-    </div>
-
-    <!-- Preset questions per mode (loaded dynamically from predef_questions.json) -->
-    <div class="preset-questions" id="presets-analysis"></div>
-    <div class="preset-questions" id="presets-evidence" style="display:none"></div>
-    <div class="preset-questions" id="presets-sql" style="display:none"></div>
-
+    <!-- Preset questions loaded dynamically from predef_questions.json -->
+    <div class="preset-questions" id="presets-chat"></div>
     <div class="chat-input-bar">
-      <input class="text-input" id="chatInput" placeholder="Type your question…" autocomplete="off"
+      <input class="text-input" id="chatInput" placeholder="Type your question..." autocomplete="off"
         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}">
       <button id="btnSend" onclick="sendChat()">Send →</button>
     </div>
@@ -293,6 +298,17 @@ button:disabled{opacity:.45;cursor:not-allowed}
   <img id="lightboxImg" src="" alt="">
 </div>
 
+<div class="modal-backdrop" id="ticketModal" onclick="if(event.target===this)closeTicketModal()">
+  <div class="ticket-modal">
+    <h3>Ticket Created</h3>
+    <p id="ticketModalMessage"></p>
+    <div class="modal-actions">
+      <button class="btn-outline" onclick="closeTicketModal()">Close</button>
+      <button id="ticketModalOpen" onclick="">Open Ticket</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ── Tab switching ─────────────────────────────────────────────────── */
 document.querySelectorAll('.tab-btn').forEach(btn=>{
@@ -304,6 +320,12 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     if(btn.dataset.tab==='chat') initChat();
     if(btn.dataset.tab==='tickets') refreshTicketList();
   });
+});
+
+document.addEventListener('click',event=>{
+  const btn=event.target.closest('.ticket-btn[data-ticket-id]');
+  if(!btn) return;
+  raiseTicket(btn.dataset.ticketId, btn);
 });
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -379,7 +401,7 @@ function startPipeline(){
   var btn=document.getElementById('btnRun');
 
   term.textContent='';
-  badge.className='badge running'; badge.textContent='Running…';
+  badge.className='badge running'; badge.textContent='Running...';
   btn.disabled=true; pipelineRunning=true;
   document.getElementById('vizCard').style.display='none';
 
@@ -437,94 +459,58 @@ function loadViz(){
 /* ══════════════════════════════════════════════════════════════════════
    CHAT
    ══════════════════════════════════════════════════════════════════════ */
-let chatReady=false, chatLoading=false, chatMode='analysis';
+let chatReady=false, chatLoading=false;
+let chatClearVersion=0;
 
-function activeMsgs(){return document.getElementById('chatMessages-'+chatMode)}
-
-const agentLoaded={analysis:false, evidence:false};
-
-document.querySelectorAll('.mode-btn').forEach(btn=>{
-  btn.addEventListener('click',()=>{
-    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    // Hide all message panels, show the selected one
-    document.querySelectorAll('.messages[id^="chatMessages-"]').forEach(el=>el.style.display='none');
-    // Hide all preset panels, show the selected one
-    document.querySelectorAll('.preset-questions').forEach(el=>el.style.display='none');
-    chatMode=btn.dataset.mode;
-    activeMsgs().style.display='';
-    var presetPanel=document.getElementById('presets-'+chatMode);
-    if(presetPanel) presetPanel.style.display='';
-    // Lazy-load agent output on first click
-    if((chatMode==='analysis'||chatMode==='evidence') && !agentLoaded[chatMode]){
-      agentLoaded[chatMode]=true;
-      loadAgentOutput(chatMode);
-    }
-  });
-});
-
-function loadAgentOutput(agent){
-  fetch('/api/agent-output/'+agent).then(r=>r.json()).then(d=>{
-    if(!d.text) return;
-    const panel=document.getElementById('chatMessages-'+agent);
-    const div=document.createElement('div');div.className='msg assistant';
-    div.style.whiteSpace='pre-wrap';div.style.fontFamily="'JetBrains Mono',monospace";div.style.fontSize='.82rem';
-    div.textContent=d.text;
-    panel.appendChild(div);panel.scrollTop=panel.scrollHeight;
-  }).catch(function(){});
+function activeMsgs(){
+  return document.getElementById('chatMessages')
 }
 
 function reloadAgentOutputs(){
-  // Clear existing agent messages and reload for new use case
-  ['analysis','evidence'].forEach(function(agent){
-    var panel=document.getElementById('chatMessages-'+agent);
-    panel.innerHTML='<div class="msg system">Ask a question about the '+agent+' results.</div>';
-    agentLoaded[agent]=false;
-  });
-  // Reload the currently active agent panel
-  agentLoaded[chatMode]=true;
-  loadAgentOutput(chatMode);
-  // Also reload preset questions
-  fetch('/api/predef-questions').then(function(r){return r.json()}).then(function(data){
-    ['analysis','evidence','sql'].forEach(function(mode){
-      var container=document.getElementById('presets-'+mode);
-      if(!container||!data[mode]) return;
-      container.innerHTML='';
-      data[mode].forEach(function(q){
-        var btn=document.createElement('button');
-        btn.className='preset-btn';btn.textContent=q;
-        btn.onclick=function(){fillPreset(btn)};
-        container.appendChild(btn);
-      });
-    });
-  }).catch(function(){});
+  activeMsgs().innerHTML='<div class="msg system">Ask a question. The backend will route it automatically.</div>';
+  loadPresetQuestions();
 }
 
-// Load default tab (analysis) on page load
-agentLoaded.analysis=true;
-loadAgentOutput('analysis');
+function clearChatHistory(){
+  chatClearVersion++;
+  activeMsgs().innerHTML='<div class="msg system">Chat cleared. Ask a new question.</div>';
+}
 
-function modeLabel(m){return{analysis:'Analysis Agent',evidence:'Evidence Agent',sql:'Database Query'}[m]||m}
+function modeLabel(m){
+  return{
+    analysis:'Analysis Agent',
+    evidence:'Evidence Agent',
+    sql:'Database Query',
+    auto_rule:'Keyword Route',
+    auto_llm:'LLM Route'
+  }[m]||m
+}
 
 function initChat(){
   if(chatReady||chatLoading) return;
   chatLoading=true;
-  addMsg('system','Initialising chat engine — loading LLM, please wait…');
+  const initVersion=chatClearVersion;
+  activeMsgs().innerHTML='<div class="msg system">Initialising chat engine - loading LLM, please wait...</div>';
   fetch('/api/chat/init',{method:'POST'}).then(r=>r.json()).then(d=>{
     chatLoading=false;
+    if(initVersion!==chatClearVersion) return;
     if(d.ok){chatReady=true;
-      // Notify all panels
-      document.querySelectorAll('.messages[id^="chatMessages-"]').forEach(el=>{
-        const div=document.createElement('div');div.className='msg system';div.textContent='Chat engine ready. Ask a question!';el.appendChild(div);
-      });
+      activeMsgs().innerHTML='<div class="msg system">Chat engine ready. Ask a question!</div>';
     }
-    else addMsg('system','⚠️ '+d.error);
-  }).catch(()=>{chatLoading=false;addMsg('system','⚠️ Could not connect to server.')});
+    else {
+      activeMsgs().innerHTML='<div class="msg system">Error: '+escHtml(d.error)+'</div>';
+    }
+  }).catch(()=>{
+    chatLoading=false;
+    if(initVersion!==chatClearVersion) return;
+    activeMsgs().innerHTML='<div class="msg system">Error: Could not connect to server.</div>';
+  });
 }
 
 function sendChat(){
   const input=document.getElementById('chatInput');
   const q=input.value.trim();if(!q)return;
+  const requestVersion=chatClearVersion;
   input.value='';
   addMsg('user',q);
 
@@ -538,17 +524,32 @@ function sendChat(){
   document.getElementById('btnSend').disabled=true;
 
   fetch('/api/chat/ask',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({mode:chatMode,question:q})
+    body:JSON.stringify({question:q})
   }).then(r=>r.json()).then(d=>{
     typing.remove();
     document.getElementById('btnSend').disabled=false;
-    if(d.error){addMsg('assistant','⚠️ '+d.error);return}
-    if(chatMode==='sql'){
-      // Pretty-print SQL answers
-      const parts=d.answer.split('\n\n');
-      let html='';
-      if(parts.length>=1) html+='<div class="sql-block">'+escHtml(parts[0])+'</div>';
-      if(parts.length>=2) html+='<div class="sql-block">'+escHtml(parts.slice(1).join('\n\n'))+'</div>';
+    if(requestVersion!==chatClearVersion) return;
+    if(d.error){
+      addMsg('assistant','⚠️ '+d.error);
+      return;
+    }
+
+    const responseMode = d.detected_mode || 'analysis';
+    const badge = '<div class="mode-badge">' + escHtml(modeLabel(responseMode)) + '</div>';
+
+    if(responseMode==='sql'){
+      // Pretty-print SQL answers without showing generated SQL in the user UI.
+      const sqlDisplayAnswer=stripGeneratedSql(d.answer);
+      const parts=sqlDisplayAnswer.split('\n\n');
+
+      let html=badge;
+      if(d.sql_rows && d.sql_rows.length){
+        if(parts.length>=1) html+='<div class="sql-block">'+escHtml(parts[0])+'</div>';
+        html+=renderSqlRows(d.sql_rows);
+      } else {
+        if(parts.length>=1) html+='<div class="sql-block">'+escHtml(parts[0])+'</div>';
+        if(parts.length>=2) html+='<div class="sql-block">'+escHtml(parts.slice(1).join('\n\n'))+'</div>';
+      }
       // Show annotated frames with ticket buttons for image_refs in results
       var refs = d.image_refs || [];
       if(!refs.length && d.frame_ids && d.frame_ids.length){
@@ -566,10 +567,11 @@ function sendChat(){
       }
       addMsgHtml('assistant',html);
     } else {
-      addMsg('assistant',d.answer);
+      addMsgHtml('assistant',badge+'<div>'+escHtml(d.answer)+'</div>');
     }
   }).catch(()=>{typing.remove();document.getElementById('btnSend').disabled=false;
-    addMsg('assistant','⚠️ Request failed.')});
+    if(requestVersion!==chatClearVersion) return;
+    addMsg('assistant','Error: Request failed.')});
 }
 
 function addMsg(role,text){
@@ -582,7 +584,59 @@ function addMsgHtml(role,html){
   const div=document.createElement('div');div.className='msg '+role;
   div.innerHTML=html;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
 }
-function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function sqlTicketId(row){
+  if(row.frame_id!==undefined && row.frame_id!==null) return row.frame_id;
+  if(row.image_id!==undefined && row.image_id!==null) return row.image_id;
+  if(row.source!==undefined && row.source!==null) return row.source;
+  return null;
+}
+
+function renderSqlRows(rows){
+  const columns=Object.keys(rows[0]||{}).slice(0,8);
+  const hasTicketAction=rows.some(row=>sqlTicketId(row)!==null);
+  let html='<div class="sql-table-wrap"><table class="sql-result-table"><thead><tr>';
+  columns.forEach(col=>{html+='<th>'+escHtml(col)+'</th>'});
+  if(hasTicketAction) html+='<th>Action</th>';
+  html+='</tr></thead><tbody>';
+  rows.forEach((row,idx)=>{
+    const ticketId=sqlTicketId(row);
+    html+='<tr>';
+    columns.forEach(col=>{
+      const value=row[col];
+      const text=value===null||value===undefined?'':String(value);
+      html+='<td>'+escHtml(text.length>90?text.slice(0,87)+'...':text)+'</td>';
+    });
+    if(hasTicketAction){
+      if(ticketId!==null){
+        html+='<td><button class="ticket-btn" data-ticket-id="'+escAttr(String(ticketId))+'">Create Ticket</button></td>';
+      } else {
+        html+='<td><span style="color:var(--text2)">No frame</span></td>';
+      }
+    }
+    html+='</tr>';
+  });
+  html+='</tbody></table></div>';
+  return html;
+}
+
+function escAttr(s){
+  return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function stripGeneratedSql(answer){
+  const text=answer||'';
+  if(!text.startsWith('Generated SQL:')) return text;
+
+  const resultIdx=text.indexOf('📊 Query Results');
+  if(resultIdx!==-1) return text.slice(resultIdx).trim();
+
+  const errorIdx=text.indexOf('❌ Error executing query');
+  if(errorIdx!==-1) return text.slice(errorIdx).trim();
+
+  const parts=text.split(/\n\s*\n/);
+  return parts.slice(1).join('\n\n').trim()||text;
+}
 
 function fillPreset(btn){
   var input=document.getElementById('chatInput');
@@ -591,13 +645,15 @@ function fillPreset(btn){
 }
 
 /* Load preset questions from server */
-(function loadPresetQuestions(){
+function loadPresetQuestions(){
   fetch('/api/predef-questions').then(function(r){return r.json()}).then(function(data){
+    var container=document.getElementById('presets-chat');
+    if(!container) return;
+
+    container.innerHTML='';
+
     ['analysis','evidence','sql'].forEach(function(mode){
-      var container=document.getElementById('presets-'+mode);
-      if(!container||!data[mode]) return;
-      container.innerHTML='';
-      data[mode].forEach(function(q){
+      (data[mode]||[]).slice(0, 1).forEach(function(q){
         var btn=document.createElement('button');
         btn.className='preset-btn';
         btn.textContent=q;
@@ -606,42 +662,56 @@ function fillPreset(btn){
       });
     });
   }).catch(function(){});
-})();
+}
+
+loadPresetQuestions();
 
 /* ══════════════════════════════════════════════════════════════════════
    TICKETS
    ══════════════════════════════════════════════════════════════════════ */
 function raiseTicket(imageId, btn){
-  btn.disabled=true;btn.textContent='⏳ Creating…';
-  // Show progress in SQL chat panel
-  const prevMode=chatMode; chatMode='sql';
-  addMsg('system','🎫 Creating ticket for '+imageId+'…');
-  chatMode=prevMode;
+  btn.disabled=true;
+  btn.textContent='Creating...';
+  addMsg('system','Creating ticket for '+imageId+'...');
 
   fetch('/api/ticket/create',{method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({frame_id:imageId})
   }).then(r=>r.json()).then(d=>{
-    const prev2=chatMode; chatMode='sql';
     if(d.ok){
-      btn.textContent='✅ Ticket Created';
-      addMsg('system','✅ '+d.message+' → '+d.filename);
+      btn.textContent='Ticket Created';
+      showTicketModal(d);
+      refreshTicketList();
     } else {
-      btn.disabled=false;btn.textContent='🎫 Retry';
-      addMsg('system','⚠️ Failed: '+(d.error||'unknown error'));
+      btn.disabled=false;
+      btn.textContent='Retry';
+      addMsg('system','Failed: '+(d.error||'unknown error'));
     }
-    chatMode=prev2;
   }).catch(()=>{
-    btn.disabled=false;btn.textContent='🎫 Ticket Frame '+frameId;
-    const prev3=chatMode; chatMode='sql';
-    addMsg('system','⚠️ Request failed.');
-    chatMode=prev3;
+    btn.disabled=false;
+    btn.textContent='Ticket '+imageId;
+    addMsg('system','Request failed.');
   });
+}
+
+function showTicketModal(ticket){
+  document.getElementById('ticketModalMessage').textContent =
+    (ticket.message || 'Ticket created.') + ' File: ' + ticket.filename;
+  const openBtn = document.getElementById('ticketModalOpen');
+  openBtn.onclick = function(){
+    viewTicket(ticket.filename);
+    closeTicketModal();
+    document.querySelector('[data-tab="tickets"]').click();
+  };
+  document.getElementById('ticketModal').classList.add('show');
+}
+function closeTicketModal(){
+  document.getElementById('ticketModal').classList.remove('show');
 }
 
 function refreshTicketList(){
   const list=document.getElementById('ticketList');
   const empty=document.getElementById('ticketEmpty');
-  list.innerHTML='<div style="color:var(--text2)">Loading…</div>';
+  list.innerHTML='<div style="color:var(--text2)">Loading...</div>';
   fetch('/api/tickets').then(r=>r.json()).then(d=>{
     if(!d.tickets||!d.tickets.length){
       list.innerHTML='';empty.style.display='';return;

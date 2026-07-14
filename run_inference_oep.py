@@ -138,13 +138,16 @@ def run_sensor_inference(sensor_data_path, sensor_model_path, image_names, class
         device: OpenVINO device for sensor inference
 
     Returns:
-        Dict mapping image_name -> list of class probabilities (softmax output)
+        Tuple of:
+        - Dict mapping image_name -> list of class probabilities (softmax output)
+        - Dict mapping image_name -> raw sensor readings stored as sensor_raw_json
     """
     import csv
     import numpy as np
 
     # Load sensor CSV into a lookup by image name
     sensor_lookup = {}
+    sensor_readings_lookup = {}
     all_sensor_vals = []
     with open(sensor_data_path) as f:
         reader = csv.DictReader(f)
@@ -156,6 +159,17 @@ def run_sensor_inference(sensor_data_path, sensor_model_path, image_names, class
                 float(row['MQ135'])
             ]
             sensor_lookup[img_key] = sensor_vals
+            sensor_readings_lookup[img_key] = {
+                'sensor_raw_json': json.dumps({
+                    'MQ2': sensor_vals[0],
+                    'MQ3': sensor_vals[1],
+                    'MQ5': sensor_vals[2],
+                    'MQ6': sensor_vals[3],
+                    'MQ7': sensor_vals[4],
+                    'MQ8': sensor_vals[5],
+                    'MQ135': sensor_vals[6],
+                })
+            }
             all_sensor_vals.append(sensor_vals)
 
     # Compute z-score normalization parameters from full dataset
@@ -174,6 +188,7 @@ def run_sensor_inference(sensor_data_path, sensor_model_path, image_names, class
     output_layer = compiled.output(0)
 
     results = {}
+    sensor_readings = {}
     for img_name in image_names:
         # Strip extension to get lookup key (e.g., "586_Perfume.png" -> "586_Perfume")
         key = Path(img_name).stem
@@ -184,6 +199,7 @@ def run_sensor_inference(sensor_data_path, sensor_model_path, image_names, class
             continue
 
         sensor_vals = sensor_lookup[key]
+        sensor_readings[img_name] = sensor_readings_lookup[key]
         input_data = np.array([sensor_vals], dtype=np.float32)
         # Z-score normalization (model was trained on standardized features)
         input_data = (input_data - sensor_mean) / sensor_std
@@ -197,7 +213,7 @@ def run_sensor_inference(sensor_data_path, sensor_model_path, image_names, class
 
         results[img_name] = probs.tolist()
 
-    return results
+    return results, sensor_readings
 
 
 def generate_classification_viz(images_dir, fused_results, image_probs, sensor_probs,
@@ -286,7 +302,7 @@ def generate_classification_viz(images_dir, fused_results, image_probs, sensor_p
 
 
 def run_late_fusion(image_probs, sensor_probs, image_names, class_names,
-                    image_weight=0.5, sensor_weight=0.5):
+                    image_weight=0.5, sensor_weight=0.5, sensor_readings=None):
     """
     Late fusion: weighted average of image and sensor class probabilities.
 
@@ -297,6 +313,7 @@ def run_late_fusion(image_probs, sensor_probs, image_names, class_names,
         class_names: Dict mapping class_id -> class_name
         image_weight: Weight for image model probabilities
         sensor_weight: Weight for sensor model probabilities
+        sensor_readings: Dict mapping image_name -> raw sensor readings
 
     Returns:
         List of dicts with 'source', 'label', 'confidence', 'probabilities'
@@ -304,6 +321,7 @@ def run_late_fusion(image_probs, sensor_probs, image_names, class_names,
     import numpy as np
     results = []
     n_classes = len(class_names)
+    sensor_readings = sensor_readings or {}
 
     for img_name in image_names:
         img_p = np.array(image_probs.get(img_name, [1.0/n_classes]*n_classes))
@@ -314,7 +332,7 @@ def run_late_fusion(image_probs, sensor_probs, image_names, class_names,
         fused = fused / fused.sum()
 
         best_idx = int(np.argmax(fused))
-        results.append({
+        result = {
             'source': img_name,
             'label': class_names.get(best_idx, str(best_idx)),
             'confidence': float(fused[best_idx]),
@@ -322,7 +340,9 @@ def run_late_fusion(image_probs, sensor_probs, image_names, class_names,
             'sensor_confidence': float(sen_p[best_idx]),
             'label_id': best_idx,
             'probabilities': {class_names.get(i, str(i)): float(fused[i]) for i in range(n_classes)},
-        })
+        }
+        result.update(sensor_readings.get(img_name, {}))
+        results.append(result)
 
     return results
 
@@ -710,10 +730,11 @@ def run_inference(model_path, model_proc_path, images_dir, output_file,
 
     # ── SENSOR MODALITY ──
     sensor_probs = {}
+    sensor_readings = {}
 
     if modality in ('sensor', 'multi') and sensor_model_path and sensor_data_path:
         print(f"Running sensor MLP inference ({len(image_names)} samples)...")
-        sensor_probs = run_sensor_inference(
+        sensor_probs, sensor_readings = run_sensor_inference(
             sensor_data_path=sensor_data_path,
             sensor_model_path=sensor_model_path,
             image_names=image_names,
@@ -734,7 +755,8 @@ def run_inference(model_path, model_proc_path, images_dir, output_file,
             image_names=image_names,
             class_names=class_names,
             image_weight=fusion_weights.get('image', 0.5),
-            sensor_weight=fusion_weights.get('sensor', 0.5)
+            sensor_weight=fusion_weights.get('sensor', 0.5),
+            sensor_readings=sensor_readings
         )
         print(f"✓ Late fusion completed: {len(fused_results)} classifications")
     elif modality == 'sensor' and class_names:
@@ -743,13 +765,15 @@ def run_inference(model_path, model_proc_path, images_dir, output_file,
         for img_name in image_names:
             probs = sensor_probs.get(img_name, [1.0/len(class_names)]*len(class_names))
             best_idx = int(np.argmax(probs))
-            fused_results.append({
+            result = {
                 'source': img_name,
                 'label': class_names.get(best_idx, str(best_idx)),
                 'confidence': float(probs[best_idx]),
                 'label_id': best_idx,
                 'probabilities': {class_names.get(i, str(i)): float(probs[i]) for i in range(len(class_names))},
-            })
+            }
+            result.update(sensor_readings.get(img_name, {}))
+            fused_results.append(result)
 
     # ── WRITE OUTPUTS ──
     output_path = Path(output_file)

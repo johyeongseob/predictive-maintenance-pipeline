@@ -34,7 +34,7 @@ agents:
   execution_mode: sequential
   
   # Shared device for sequential mode
-  shared_device: NPU
+  shared_device: GPU
   
   # Per-agent LLM configuration (used in parallel mode only)
   policy:
@@ -50,11 +50,11 @@ agents:
   evidence:
     llm_mode: model
     model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
-    device: NPU
+    device: GPU
 glue:
   mode: model
   model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
-  device: NPU
+  device: GPU
   max_steps: 4
   verbose: true
   enable_cache: false

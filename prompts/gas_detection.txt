@@ -14,17 +14,32 @@ Analyze gas classification data and provide structured insights.
 Set confidence threshold to 0.7 for NoGas (high confidence required to confirm no gas).
 For all gas-present classes (Mixture, Perfume, Smoke), use 0.5 confidence threshold.
 Apply a global minimum confidence threshold of 0.5.
+You may also apply min_sensor_confidence, a float between 0.0 and 1.0, to filter out low-quality sensor-only classifications.
+Add a sensor_alert_thresholds dict mapping MQ sensor channel names (MQ2, MQ3, MQ5, MQ6, MQ7, MQ8, MQ135) to threshold values.
+If any raw sensor reading exceeds its sensor_alert_thresholds value, flag the sample for review.
 
 Return a structured policy JSON with fields:
 - min_conf_global: global minimum confidence threshold (default 0.5)
 - per_class_thresholds: object mapping class names to confidence thresholds
-
+- min_sensor_confidence: minimum acceptable sensor confidence threshold (default 0.5)
+- sensor_alert_thresholds: object mapping sensor channel names to raw reading alert thresholds
+ 
 Example output format (use actual policy rules above, not these example values):
 {
   "min_conf_global": 0.5,
   "per_class_thresholds": {
     "ClassA": 0.7,
     "ClassB": 0.5
+  },
+  "min_sensor_confidence": 0.5,
+  "sensor_alert_thresholds": {
+    "MQ2": 700,
+    "MQ3": 700,
+    "MQ5": 700,
+    "MQ6": 700,
+    "MQ7": 700,
+    "MQ8": 700,
+    "MQ135": 700
   }
 }
 

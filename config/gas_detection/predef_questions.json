@@ -13,5 +13,15 @@
     "Count classifications grouped by label.",
     "Show images classified as Smoke with confidence above 0.5.",
     "Show me the NoGas classifications with highest confidence."
+  ],
+  "auto_rule": [
+  "Show images classified as Smoke with confidence above 0.5.",
+  "What policy was used for this run?",
+  "Summarize the analysis in 3 bullet points."
+  ],
+  "auto_llm": [
+    "Show images classified as Smoke with confidence above 0.5.",
+    "What policy was used for this run?",
+    "Summarize the analysis in 3 bullet points."
   ]
 }
