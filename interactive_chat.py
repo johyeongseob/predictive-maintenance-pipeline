@@ -148,10 +148,10 @@ class InteractiveChat:
     
     def generate_sql_query(self, natural_language_query: str) -> str:
         """Convert natural language query to SQL using sqlcoder-7b-2 model."""
-        if self.db_client and hasattr(self.db_client, "get_schema_with_sensor_columns"):
-            schema_info = self.db_client.get_schema_with_sensor_columns()
-        elif self.sql_schema:
+        if self.sql_schema:
             schema_info = self.sql_schema
+        elif self.db_client and hasattr(self.db_client, "get_schema_with_sensor_columns"):
+            schema_info = self.db_client.get_schema_with_sensor_columns()
         elif self.db_client:
             schema_info = self.db_client.get_schema()
         else:

@@ -125,7 +125,13 @@ Columns:
   - confidence (REAL): Fused classification confidence score (0.0 to 1.0)
   - image_confidence (REAL): Image model confidence for the predicted class (0.0 to 1.0)
   - sensor_confidence (REAL): Sensor model confidence for the predicted class (0.0 to 1.0)
+  - sensor_raw_json (TEXT): JSON object containing raw MQ gas sensor readings.
+    Keys: MQ2, MQ3, MQ5, MQ6, MQ7, MQ8, MQ135.
   - created_at (TIMESTAMP): Timestamp of classification
 
 Important: Each row is one classification result. Each image has exactly one classification.
 The 'confidence' column is the fused (weighted average) of image_confidence and sensor_confidence.
+Use SQLite json_extract(sensor_raw_json, '$.MQ2') to query raw MQ sensor values.
+For MQ sensor questions, do not use confidence; use json_extract(sensor_raw_json, '$.<channel>').
+When a question mentions Smoke, Mixture, Perfume, or NoGas, always include a WHERE label = '<ClassName>' filter.
+Select only the columns needed to answer the question; do not use SELECT * unless the user asks for all columns.
