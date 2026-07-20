@@ -18,6 +18,8 @@ class SensorFlatHandler(InferenceHandler):
         self.config = {}
         self.compiled = None
         self.output_layer = None
+        self.sensor_model_path = None
+        self.sensor_device = None
         self.sensor_lookup = {}
         self.sensor_readings_lookup = {}
         self.sensor_mean = None
@@ -38,13 +40,14 @@ class SensorFlatHandler(InferenceHandler):
 
     def load(self, config: dict) -> None:
         import numpy as np
-        from openvino.runtime import Core
 
         self.config = config
         sensor_cfg = config.get("sensor", {})
         sensor_data_path = config.get("sensor_data_path", sensor_cfg.get("data_path"))
         sensor_model_path = config.get("sensor_model_path", sensor_cfg.get("model_path"))
-        device = config.get("device", "CPU")
+        device = config.get("sensor_device", "CPU")
+        self.sensor_model_path = sensor_model_path
+        self.sensor_device = device
         self.class_names = config.get("class_names", config.get("names", {}))
 
         self.sensor_lookup = {}
@@ -70,9 +73,15 @@ class SensorFlatHandler(InferenceHandler):
         self.sensor_std = all_sensor_vals.std(axis=0)
         self.sensor_std[self.sensor_std == 0] = 1.0
 
+    def _ensure_sensor_model_loaded(self) -> None:
+        if self.compiled is not None:
+            return
+
+        from openvino.runtime import Core
+
         core = Core()
-        model = core.read_model(sensor_model_path)
-        self.compiled = core.compile_model(model, device)
+        model = core.read_model(self.sensor_model_path)
+        self.compiled = core.compile_model(model, self.sensor_device)
         self.output_layer = self.compiled.output(0)
 
     def infer(self, inputs: list, config: dict) -> list[dict]:
@@ -83,6 +92,23 @@ class SensorFlatHandler(InferenceHandler):
         image_names = merged_config.get("image_names", inputs)
         class_names = merged_config.get("class_names", self.class_names)
         n_classes = len(class_names)
+
+        fusion_weights = merged_config.get("fusion_weights") or {"image": 0.5, "sensor": 0.5}
+
+        if modality == "multi":
+            from .openvino_classify import run_image_classification
+
+            inference_cfg = merged_config.get("inference", {})
+            self.last_image_probs = run_image_classification(
+                images_dir=merged_config.get("images_dir", inference_cfg.get("images_path")),
+                model_xml=merged_config.get("model_path", inference_cfg.get("model_path")),
+                class_names=class_names,
+                device=merged_config.get("device", inference_cfg.get("device", "GPU")),
+                num_images=merged_config.get("num_images"),
+                img_size=merged_config.get("img_size", inference_cfg.get("imgsz", 640)),
+            )
+ 
+        self._ensure_sensor_model_loaded()
 
         results = []
         print(f"Running sensor MLP inference ({len(image_names)} samples)...")
@@ -129,19 +155,6 @@ class SensorFlatHandler(InferenceHandler):
         }
 
         if modality == "multi":
-            from .openvino_classify import run_image_classification
-
-            inference_cfg = merged_config.get("inference", {})
-            fusion_weights = merged_config.get("fusion_weights") or {"image": 0.5, "sensor": 0.5}
-
-            self.last_image_probs = run_image_classification(
-                images_dir=merged_config.get("images_dir", inference_cfg.get("images_path")),
-                model_xml=merged_config.get("model_path", inference_cfg.get("model_path")),
-                class_names=class_names,
-                device=merged_config.get("device", inference_cfg.get("device", "GPU")),
-                num_images=merged_config.get("num_images"),
-                img_size=merged_config.get("img_size", inference_cfg.get("imgsz", 640)),
-            )
 
             print(
                 f"Running late fusion (image_w={fusion_weights['image']:.2f}, "
