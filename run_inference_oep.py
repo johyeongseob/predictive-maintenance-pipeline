@@ -14,9 +14,7 @@ import yaml
 from pathlib import Path
 import argparse
 from scripts.clean_slate import clean_database, clean_outputs
-from src.inference.handlers.dlstreamer_detect import parse_dlstreamer_output, run_dlstreamer_inference
-from src.inference.handlers.openvino_classify import run_image_classification
-from src.inference.handlers.sensor_flat import run_late_fusion, run_sensor_inference
+from src.inference import dispatch
 
 
 # Import SQLite client
@@ -180,7 +178,7 @@ def run_inference(model_path, model_proc_path, images_dir, output_file,
                   schema=None, detection_mapping=None, out_subdir='',
                   task='detect', modality='image', class_names=None,
                   sensor_model_path=None, sensor_data_path=None,
-                  fusion_weights=None):
+                  fusion_weights=None, handler_name=None):
     """Run full inference pipeline: DLStreamer → parse → JSONL + SQLite.
 
     Supports modality-aware inference:
@@ -226,94 +224,72 @@ def run_inference(model_path, model_proc_path, images_dir, output_file,
     if not fusion_weights:
         fusion_weights = {'image': 0.5, 'sensor': 0.5}
 
-    # ── IMAGE MODALITY ──
-    image_probs = {}
+
+    # Dispatch inference to the selected input-type handler.
+    if not handler_name:
+        if task == 'detect':
+            handler_name = 'dlstreamer_detect'
+        elif task == 'classify' and modality == 'image':
+            handler_name = 'openvino_classify'
+        elif task == 'classify' and modality in ('sensor', 'multi'):
+            handler_name = 'sensor_flat'
+
+    handler_config = {
+        'handler': handler_name,
+        'modality': modality,
+        'task': task,
+        'model_path': model_path,
+        'model_proc_path': model_proc_path,
+        'images_dir': images_dir,
+        'output_file': output_file,
+        'device': device,
+        'conf_threshold': conf_threshold,
+        'num_images': num_images,
+        'nireq': nireq,
+        'video_path': video_path,
+        'inference_interval': inference_interval,
+        'out_subdir': out_subdir,
+        'class_names': class_names or {},
+        'sensor_model_path': sensor_model_path,
+        'sensor_data_path': sensor_data_path,
+        'sensor_device': 'CPU',
+        'fusion_weights': fusion_weights,
+        'schema': schema,
+        'image_names': image_names,
+        'inference': {
+            'handler': handler_name,
+            'task': task,
+            'model_path': model_path,
+            'device': device,
+            'confidence_threshold': conf_threshold,
+            'imgsz': 640,
+            'images_path': images_dir,
+            'video_path': video_path,
+            'inference_interval': inference_interval,
+        },
+        'sensor': {
+            'model_path': sensor_model_path,
+            'data_path': sensor_data_path,
+        },
+    }
+
+    handler = dispatch(handler_config)
+    handler.load(handler_config)
+    results = handler.infer(image_names, handler_config)
+
+    image_probs = getattr(handler, 'last_image_probs', {})
+    sensor_probs = getattr(handler, 'last_sensor_probs', {})
     frames = []
-    n_processed = 0
-
-    if modality in ('image', 'multi'):
-        if task == 'classify':
-            # Classification: direct OpenVINO inference (DLStreamer has limitations with FP32 cls models)
-            image_probs = run_image_classification(
-                images_dir=images_dir,
-                model_xml=model_path,
-                class_names=class_names or {},
-                device=device,
-                num_images=num_images,
-                img_size=640
-            )
-            n_processed = len(image_probs)
-        else:
-            # Detection: DLStreamer Docker pipeline (gvadetect)
-            raw_output, n_processed = run_dlstreamer_inference(
-                images_dir=images_dir,
-                output_file=output_file,
-                model_xml=model_path,
-                model_proc=model_proc_path,
-                device=device,
-                threshold=conf_threshold,
-                num_images=num_images,
-                nireq=nireq,
-                video_path=video_path,
-                inference_interval=inference_interval,
-                out_subdir=out_subdir,
-                task=task
-            )
-
-            print("Parsing DLStreamer output...")
-            frames = parse_dlstreamer_output(raw_output, images_dir=images_dir, video_mode=use_video)
-
-            # Clean up raw output
-            raw_path = Path(raw_output)
-            if raw_path.exists():
-                raw_path.unlink()
-
-    # ── SENSOR MODALITY ──
-    sensor_probs = {}
-    sensor_readings = {}
-
-    if modality in ('sensor', 'multi') and sensor_model_path and sensor_data_path:
-        print(f"Running sensor MLP inference ({len(image_names)} samples)...")
-        sensor_probs, sensor_readings = run_sensor_inference(
-            sensor_data_path=sensor_data_path,
-            sensor_model_path=sensor_model_path,
-            image_names=image_names,
-            class_names=class_names or {},
-            device='CPU'  # Sensor MLP is small, CPU is fine
-        )
-        print(f"✓ Sensor inference completed")
-
-    # ── LATE FUSION (multi modality) ──
     fused_results = []
+    n_processed = len(results)
 
-    if modality == 'multi' and class_names:
-        print(f"Running late fusion (image_w={fusion_weights['image']:.2f}, sensor_w={fusion_weights['sensor']:.2f})...")
-        # If image-only didn't run (sensor-only), image_probs will be empty
-        fused_results = run_late_fusion(
-            image_probs=image_probs,
-            sensor_probs=sensor_probs,
-            image_names=image_names,
-            class_names=class_names,
-            image_weight=fusion_weights.get('image', 0.5),
-            sensor_weight=fusion_weights.get('sensor', 0.5),
-            sensor_readings=sensor_readings
-        )
-        print(f"✓ Late fusion completed: {len(fused_results)} classifications")
-    elif modality == 'sensor' and class_names:
-        # Sensor-only mode: convert sensor probs to classification results
-        import numpy as np
-        for img_name in image_names:
-            probs = sensor_probs.get(img_name, [1.0/len(class_names)]*len(class_names))
-            best_idx = int(np.argmax(probs))
-            result = {
-                'source': img_name,
-                'label': class_names.get(best_idx, str(best_idx)),
-                'confidence': float(probs[best_idx]),
-                'label_id': best_idx,
-                'probabilities': {class_names.get(i, str(i)): float(probs[i]) for i in range(len(class_names))},
-            }
-            result.update(sensor_readings.get(img_name, {}))
-            fused_results.append(result)
+    if task == 'detect':
+        frames = results
+    elif task == 'classify' and modality == 'image':
+        image_probs = {result['source']: result['probabilities'] for result in results}
+    elif task == 'classify':
+        fused_results = results
+
 
     # ── WRITE OUTPUTS ──
     output_path = Path(output_file)
@@ -489,6 +465,7 @@ if __name__ == '__main__':
     class_names = None
     sensor_model_path = None
     sensor_data_path = None
+    handler_name = None
     fusion_weights = None
 
     if args.config:
@@ -508,6 +485,7 @@ if __name__ == '__main__':
             # Load task and modality
             inference_cfg = config.get('inference', {})
             task = inference_cfg.get('task', 'detect')
+            handler_name = inference_cfg.get('handler')
             modality = config.get('modality', 'image')
 
             # Load class names
@@ -603,4 +581,5 @@ if __name__ == '__main__':
                   task=task, modality=modality, class_names=class_names,
                   sensor_model_path=sensor_model_path,
                   sensor_data_path=sensor_data_path,
-                  fusion_weights=fusion_weights)
+                  fusion_weights=fusion_weights, 
+                  handler_name=handler_name)

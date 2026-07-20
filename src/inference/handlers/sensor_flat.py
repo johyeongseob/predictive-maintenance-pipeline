@@ -79,11 +79,13 @@ class SensorFlatHandler(InferenceHandler):
         import numpy as np
 
         merged_config = {**self.config, **config}
+        modality = merged_config.get("modality", "sensor")
         image_names = merged_config.get("image_names", inputs)
         class_names = merged_config.get("class_names", self.class_names)
         n_classes = len(class_names)
 
         results = []
+        print(f"Running sensor MLP inference ({len(image_names)} samples)...")
         for img_name in image_names:
             # Strip extension to get lookup key (e.g., "586_Perfume.png" -> "586_Perfume")
             key = Path(img_name).stem
@@ -113,6 +115,49 @@ class SensorFlatHandler(InferenceHandler):
             }
             result.update(self.sensor_readings_lookup[key])
             results.append(result)
+        
+        print("✓ Sensor inference completed")
+
+        self.last_sensor_probs = {
+            result["source"]: result["probabilities"]
+            for result in results
+        }
+        self.last_sensor_readings = {
+            result["source"]: {"sensor_raw_json": result["sensor_raw_json"]}
+            for result in results
+            if "sensor_raw_json" in result
+        }
+
+        if modality == "multi":
+            from .openvino_classify import run_image_classification
+
+            inference_cfg = merged_config.get("inference", {})
+            fusion_weights = merged_config.get("fusion_weights") or {"image": 0.5, "sensor": 0.5}
+
+            self.last_image_probs = run_image_classification(
+                images_dir=merged_config.get("images_dir", inference_cfg.get("images_path")),
+                model_xml=merged_config.get("model_path", inference_cfg.get("model_path")),
+                class_names=class_names,
+                device=merged_config.get("device", inference_cfg.get("device", "GPU")),
+                num_images=merged_config.get("num_images"),
+                img_size=merged_config.get("img_size", inference_cfg.get("imgsz", 640)),
+            )
+
+            print(
+                f"Running late fusion (image_w={fusion_weights['image']:.2f}, "
+                f"sensor_w={fusion_weights['sensor']:.2f})..."
+            )
+            fused_results = self.fuse(
+                image_probs=self.last_image_probs,
+                sensor_probs=self.last_sensor_probs,
+                image_names=image_names,
+                class_names=class_names,
+                image_weight=fusion_weights.get("image", 0.5),
+                sensor_weight=fusion_weights.get("sensor", 0.5),
+                sensor_readings=self.last_sensor_readings,
+            )
+            print(f"✓ Late fusion completed: {len(fused_results)} classifications")
+            return fused_results
 
         return results
 
