@@ -10,6 +10,7 @@ names:
   4: Misalignment
   5: Deposition
 inference:
+  handler: dlstreamer_detect
   task: detect  # 'detect' or 'classify'
   model_path: models/ov_models/pipeline_defects_detection/image/best.xml
   device: GPU
