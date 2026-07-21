@@ -80,3 +80,7 @@ datasets/pipeline_defects_detection/video/
 GSoC_Timeline.md
 task2.md
 task3a.md
+
+# Benchmark scripts and related outputs
+benchmarks/
+baseline/
