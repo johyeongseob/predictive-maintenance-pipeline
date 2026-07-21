@@ -161,13 +161,14 @@ class SensorFlatHandler(InferenceHandler):
                 f"sensor_w={fusion_weights['sensor']:.2f})..."
             )
             fused_results = self.fuse(
-                image_probs=self.last_image_probs,
-                sensor_probs=self.last_sensor_probs,
+                branch_probs={
+                    "image": self.last_image_probs,
+                    "sensor": self.last_sensor_probs,
+                },
+                fusion_weights=fusion_weights,
                 image_names=image_names,
                 class_names=class_names,
-                image_weight=fusion_weights.get("image", 0.5),
-                sensor_weight=fusion_weights.get("sensor", 0.5),
-                sensor_readings=self.last_sensor_readings,
+                metadata_by_image=self.last_sensor_readings,
             )
             print(f"✓ Late fusion completed: {len(fused_results)} classifications")
             return fused_results
@@ -179,26 +180,34 @@ class SensorFlatHandler(InferenceHandler):
 
     def fuse(
         self,
-        image_probs,
-        sensor_probs,
+        branch_probs,
+        fusion_weights,
         image_names,
         class_names,
-        image_weight=0.5,
-        sensor_weight=0.5,
-        sensor_readings=None,
+        metadata_by_image=None,
     ):
-        """Late fusion: weighted average of image and sensor class probabilities."""
+        """Late fusion: weighted average over all configured probability branches."""
         import numpy as np
 
         results = []
         n_classes = len(class_names)
-        sensor_readings = sensor_readings or {}
+        metadata_by_image = metadata_by_image or {}
+        uniform = [1.0 / n_classes] * n_classes
 
         for img_name in image_names:
-            img_p = np.array(image_probs.get(img_name, [1.0/n_classes]*n_classes))
-            sen_p = np.array(sensor_probs.get(img_name, [1.0/n_classes]*n_classes))
+            fused = np.zeros(n_classes)
+            branch_arrays = {}
 
-            fused = image_weight * img_p + sensor_weight * sen_p
+            for branch_name, weight in fusion_weights.items():
+                probs_by_image = branch_probs.get(branch_name)
+                if not probs_by_image:
+                    continue
+                branch_p = np.array(probs_by_image.get(img_name, uniform))
+                branch_arrays[branch_name] = branch_p
+                fused += float(weight) * branch_p
+
+            if fused.sum() == 0:
+                fused = np.array(uniform)
             # Normalize
             fused = fused / fused.sum()
 
@@ -207,12 +216,14 @@ class SensorFlatHandler(InferenceHandler):
                 "source": img_name,
                 "label": class_names.get(best_idx, str(best_idx)),
                 "confidence": float(fused[best_idx]),
-                "image_confidence": float(img_p[best_idx]),
-                "sensor_confidence": float(sen_p[best_idx]),
                 "label_id": best_idx,
                 "probabilities": {class_names.get(i, str(i)): float(fused[i]) for i in range(n_classes)},
             }
-            result.update(sensor_readings.get(img_name, {}))
+            if "image" in branch_arrays:
+                result["image_confidence"] = float(branch_arrays["image"][best_idx])
+            if "sensor" in branch_arrays:
+                result["sensor_confidence"] = float(branch_arrays["sensor"][best_idx])
+            result.update(metadata_by_image.get(img_name, {}))
             results.append(result)
 
         return results
@@ -245,11 +256,15 @@ def run_late_fusion(image_probs, sensor_probs, image_names, class_names,
                     image_weight=0.5, sensor_weight=0.5, sensor_readings=None):
     """Compatibility wrapper for the existing run_inference_oep.py call path."""
     return SensorFlatHandler().fuse(
-        image_probs=image_probs,
-        sensor_probs=sensor_probs,
+        branch_probs={
+            "image": image_probs,
+            "sensor": sensor_probs,
+        },
+        fusion_weights={
+            "image": image_weight,
+            "sensor": sensor_weight,
+        },
         image_names=image_names,
         class_names=class_names,
-        image_weight=image_weight,
-        sensor_weight=sensor_weight,
-        sensor_readings=sensor_readings,
+        metadata_by_image=sensor_readings,
     )
