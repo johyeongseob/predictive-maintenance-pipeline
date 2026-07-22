@@ -1,5 +1,0 @@
-FROM intel/dlstreamer:latest
-
-USER root
-
-ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0
