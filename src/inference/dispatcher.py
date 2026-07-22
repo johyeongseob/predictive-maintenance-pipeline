@@ -6,17 +6,12 @@ from . import handlers as _handlers_module  # noqa: F401 - importing registers b
 
 
 def dispatch(config: dict) -> InferenceHandler:
-    """Select an inference handler from config or can_handle() detection."""
+    """Select an inference handler from config."""
     inference_cfg = config.get("inference", {})
     handler_name = inference_cfg.get("handler") or config.get("handler")
 
-    if handler_name:
-        handler_cls = get_handler_class(handler_name)
-        return handler_cls()
+    if not handler_name:
+        raise ValueError("Missing inference handler. Set inference.handler in config YAML.")
 
-    for handler_cls in registered_handlers().values():
-        handler = handler_cls()
-        if handler.can_handle(config):
-            return handler
-
-    raise ValueError("No handler found")
+    handler_cls = get_handler_class(handler_name)
+    return handler_cls()
