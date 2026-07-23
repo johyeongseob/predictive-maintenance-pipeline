@@ -33,6 +33,7 @@ sqlite:
   clear_outputs: true
 
 agents:
+  active: [policy, analysis, evidence]
   confidence_threshold: 0.5
   report_top_n: 5
   execution_mode: sequential

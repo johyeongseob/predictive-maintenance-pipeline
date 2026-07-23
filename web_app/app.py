@@ -21,7 +21,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utility.chat_intent import classify_intent_keyword, classify_intent_with_llm
+from src.utility.chat_intent import (
+    classify_intent_keyword,
+    classify_intent_with_llm,
+    resolve_active_chat_mode,
+)
+
 
 app = Flask(
     __name__,
@@ -408,6 +413,8 @@ def chat_ask():
         except Exception:
             logger.exception("LLM intent classification failed")
             return jsonify({"error": "LLM intent classification failed"}), 500
+
+    mode = resolve_active_chat_mode(mode, chat.config)
 
     try:
         if mode == "analysis":

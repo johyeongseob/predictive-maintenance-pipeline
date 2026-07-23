@@ -13,6 +13,7 @@ from typing import Iterable, Pattern
 
 
 VALID_CHAT_MODES = {"analysis", "evidence", "sql"}
+DEFAULT_ACTIVE_AGENTS = ["policy", "analysis", "evidence"]
 
 
 @dataclass(frozen=True)
@@ -121,6 +122,34 @@ def classify_intent_with_llm(question: str, llm) -> str:
 def is_valid_chat_mode(mode: str | None) -> bool:
     """Return whether a mode string maps to a supported chat handler."""
     return mode in VALID_CHAT_MODES
+
+
+def get_active_chat_modes(config: dict | None) -> set[str]:
+    """Return chat modes allowed by agents.active."""
+    agents_cfg = (config or {}).get("agents", {})
+    active_agents = agents_cfg.get("active", DEFAULT_ACTIVE_AGENTS)
+    if isinstance(active_agents, str):
+        active_agents = [active_agents]
+
+    modes = {"sql"}
+    if "analysis" in active_agents:
+        modes.add("analysis")
+    if "evidence" in active_agents:
+        modes.add("evidence")
+    return modes
+
+
+def resolve_active_chat_mode(mode: str, config: dict | None) -> str:
+    """Return mode if active, otherwise choose an active fallback mode."""
+    active_modes = get_active_chat_modes(config)
+    if mode in active_modes:
+        return mode
+
+    for fallback in ("analysis", "evidence", "sql"):
+        if fallback in active_modes:
+            return fallback
+
+    return "sql"
 
 
 def classify_many_keyword(questions: Iterable[str]) -> list[str]:

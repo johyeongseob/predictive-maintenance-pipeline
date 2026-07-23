@@ -204,7 +204,7 @@ def main():
     initial_state = {"meta": meta}
     
     # Build and run LangGraph workflow with execution mode
-    graph = build_graph(execution_mode=execution_mode)
+    graph = build_graph(config=cfg, execution_mode=execution_mode)
     
     # Run workflow
     final_state = graph.invoke(initial_state)
@@ -212,6 +212,9 @@ def main():
     # Extract results from meta namespace
     meta_final = final_state.get("meta", {})
     analysis_data = meta_final.get("analysis", {})
+    active_agents = agents_cfg.get("active", ["policy", "analysis", "evidence"])
+    if isinstance(active_agents, str):
+        active_agents = [active_agents]
     
     # Print results
     print("\n" + "="*70)
@@ -220,10 +223,12 @@ def main():
     print(f"Total Defects Analyzed: {analysis_data.get('total_defects', 0)}")
     print(f"\n📁 Outputs saved to:")
     print(f"   • Policy: {out_dir}/agent/policy.json")
-    print(f"   • Analysis: {out_dir}/agent/analysis_report.json")
-    print(f"   • Analysis Summary: {out_dir}/agent/analysis_summary.txt")
-    print(f"   • Evidence: {out_dir}/agent/evidence.json")
-    print(f"   • Audit Trail: {out_dir}/agent/evidence_trail.txt")
+    if "analysis" in active_agents:
+        print(f"   • Analysis: {out_dir}/agent/analysis_report.json")
+        print(f"   • Analysis Summary: {out_dir}/agent/analysis_summary.txt")
+    if "evidence" in active_agents:
+        print(f"   • Evidence: {out_dir}/agent/evidence.json")
+        print(f"   • Audit Trail: {out_dir}/agent/evidence_trail.txt")
 
 
 if __name__ == "__main__":

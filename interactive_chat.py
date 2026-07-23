@@ -13,7 +13,7 @@ import yaml
 import re
 from src.agents.utility.openvino_llm import OpenVINOLLM, RemoteLLM
 from src.utility import load_prompts
-from src.utility.chat_intent import classify_intent_keyword, classify_intent_with_llm
+from src.utility.chat_intent import classify_intent_keyword, resolve_active_chat_mode, classify_intent_with_llm
 from src.utility.sqlite_client import SQLiteClient
 
 
@@ -285,6 +285,7 @@ SELECT"""
                 continue
 
             detected_mode = classify_intent_keyword(custom_q)
+            detected_mode = resolve_active_chat_mode(detected_mode, self.config)
             print(f"[Detected: {detected_mode}]")
 
             response = self.answer_question_by_mode(

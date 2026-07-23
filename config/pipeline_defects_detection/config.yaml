@@ -26,6 +26,7 @@ sqlite:
   clear_on_run: true
   clear_outputs: true
 agents:
+  active: [policy, analysis, evidence]
   confidence_threshold: 0.4
   report_top_n: 5
   
