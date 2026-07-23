@@ -3,6 +3,7 @@
 
 def build_handler_config(config, schema, image_names, output_file=None, out_subdir=""):
     """Build the config shape consumed by inference handlers."""
+    schema = schema or {}
     inference_cfg = config.get("inference", {})
     sensor_cfg = config.get("sensor", {})
 
@@ -37,6 +38,10 @@ def build_handler_config(config, schema, image_names, output_file=None, out_subd
         "fusion_weights": config.get("fusion_weights"),
         "schema": schema,
         "image_names": image_names,
-        "inference": inference_cfg,
+        "inference": {
+            **inference_cfg,
+            "handler": handler_name,
+            "task": task,
+        },
         "sensor": sensor_cfg,
     }
