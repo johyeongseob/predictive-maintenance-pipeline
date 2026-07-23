@@ -22,7 +22,7 @@ import argparse
 import yaml
 import json
 import os
-from src.agents.meta_agent import build_graph
+from src.agents.graph_builder import build_graph
 from src.agents.utility import DatabaseBackend, OpenVINOLLM, RemoteLLM
 from src.utility import load_prompts
 
