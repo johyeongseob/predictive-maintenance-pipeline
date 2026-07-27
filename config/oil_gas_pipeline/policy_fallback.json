@@ -1,0 +1,6 @@
+{
+  "min_conf_global": 0.5,
+  "per_class_thresholds": {
+    "PlaceholderClass": 0.5
+  }
+}

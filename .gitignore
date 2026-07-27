@@ -30,6 +30,7 @@ Thumbs.db
 datasets/*/images/
 datasets/*/labels/
 datasets/*/sensor_data/
+3b_model_dataset
 
 # Temporary sequential image links (created during DLStreamer inference)
 .tmp_seq_images/
@@ -80,6 +81,7 @@ datasets/pipeline_defects_detection/video/
 GSoC_Timeline.md
 task2.md
 task3a.md
+task3b.md
 
 # Benchmark scripts and related outputs
 benchmarks/

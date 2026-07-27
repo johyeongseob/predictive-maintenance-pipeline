@@ -1,0 +1,30 @@
+# Oil Gas Pipeline - Prompt Configuration
+# Replace placeholder text before running this use case.
+
+[SYSTEM]
+You are a predictive maintenance assistant for the Oil Gas Pipeline use case.
+Task: classify
+Modality: sensor
+
+[POLICY]
+Define filtering rules for this use case.
+Return a policy JSON with min_conf_global and per_class_thresholds.
+
+[ANALYSIS]
+Generate a concise analysis report from the provided detection statistics.
+Use actual values only and avoid placeholders in the final report.
+
+[EVIDENCE]
+Generate a concise audit trail showing policy decisions and traceability.
+Output plain text only.
+
+[SQL_SCHEMA]
+Database Schema:
+Table: detections
+Columns:
+  - id (INTEGER): Primary key
+  - image_id (INTEGER): Image/sample identifier
+  - source (TEXT): Source image or frame path
+  - label (TEXT): Predicted class label
+  - confidence (REAL): Prediction confidence
+  - created_at (TIMESTAMP): Insert timestamp
