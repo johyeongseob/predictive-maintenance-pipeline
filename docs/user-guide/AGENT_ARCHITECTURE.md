@@ -68,6 +68,13 @@ The predictive_maintenance_pipeline agent system uses LangGraph with a two-phase
    - Avoids OpenVINO GenAI concurrent request bug
    - Maintains clean separation of concerns
 
+4. **Configurable Agent Composition**
+   - Use-case configs can declare active agents with `agents.active`
+   - Example: `agents.active: [policy, analysis, evidence]`
+   - The graph builder registers only the active LangGraph nodes
+   - Each registered agent declares required and provided resource keys
+   - Invalid graph configurations fail early with a clear configuration error
+
 ### Data Flow
 
 **Phase 1:**
@@ -99,11 +106,50 @@ Each agent:
 - ❌ Cannot directly read other agents' outputs
 - ❌ Cannot directly call other agents
 
+### Configurable Agent Graph
+
+The agent graph is built from the active agent list in each use-case config:
+
+```yaml
+agents:
+  active: [policy, analysis, evidence]
+```
+
+The graph builder maps agent names to their node functions and validates the
+resource contract before execution. Each agent declares:
+
+- `requires`: resource keys that must already exist in the graph state
+- `provides`: resource keys produced by that agent
+
+This lets a use case enable or disable downstream agents without editing
+`meta_agent.py`. For example, a future oil and gas use case can activate a
+specialist corrosion agent by adding it to the config:
+
+```yaml
+agents:
+  active: [policy, analysis, evidence, corrosion_agent]
+```
+
+Chat routing should also check the active agents. If a user question is routed
+to a mode whose backing agent is inactive, the router should fall back to an
+available mode instead of reading missing artifacts.
+
+### Agent Extension Contract
+
+To add a new specialist agent:
+
+1. Add a new module under `src/agents/`
+2. Export a LangGraph node function that accepts and returns the shared state
+3. Register the agent name, node function, `requires`, and `provides` keys in the graph builder
+4. Add the agent name to `agents.active` in the target use-case config
+
 ### Implementation Files
 
-- **Graph Definition:** [`src/agents/meta_agent.py`](src/agents/meta_agent.py)
-- **State Schema:** [`src/agents/state.py`](src/agents/state.py)
-- **Policy Agent:** [`src/agents/policy_metrics.py`](src/agents/policy_metrics.py)
-- **Analysis Agent:** [`src/agents/analysis_reporting.py`](src/agents/analysis_reporting.py)
-- **Evidence Agent:** [`src/agents/evidence_audit.py`](src/agents/evidence_audit.py)
-- **LLM Backend:** [`src/agents/openvino_llm.py`](src/agents/openvino_llm.py)
+- **Graph Builder:** [`src/agents/graph_builder.py`](../../src/agents/graph_builder.py)
+- **Meta Nodes:** [`src/agents/meta_agent.py`](../../src/agents/meta_agent.py)
+- **State Schema:** [`src/agents/state.py`](../../src/agents/state.py)
+- **Policy Agent:** [`src/agents/policy_agent.py`](../../src/agents/policy_agent.py)
+- **Analysis Agent:** [`src/agents/analysis_agent.py`](../../src/agents/analysis_agent.py)
+- **Evidence Agent:** [`src/agents/evidence_agent.py`](../../src/agents/evidence_agent.py)
+- **Chat Intent Routing:** [`src/utility/chat_intent.py`](../../src/utility/chat_intent.py)
+- **LLM Backend:** [`src/agents/openvino_llm.py`](../../src/agents/openvino_llm.py)

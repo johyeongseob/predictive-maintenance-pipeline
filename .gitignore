@@ -42,6 +42,7 @@ models/ov_models/**/*.bin
 models/ov_models/**/*.xml
 models/ov_models/**/*.mapping
 models/ov_models/llms/
+models/ov_models/oil_gas_pipeline
 
 data/
 # Outputs
