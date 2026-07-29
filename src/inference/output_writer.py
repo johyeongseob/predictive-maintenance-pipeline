@@ -152,11 +152,12 @@ def write_inference_outputs(
         fused_results = results
         n_frames = len(fused_results)
         _write_jsonl_records(output_path, fused_results)
-        for result in fused_results:
+        for frame_idx, result in enumerate(fused_results):
             total_detections += 1
             # Build row for SQLite using detection_mapping
             if sqlite_client and detection_mapping:
-                frame_idx = image_names.index(result['source']) if result['source'] in image_names else 0
+                if result['source'] in image_names:
+                    frame_idx = image_names.index(result['source'])
                 row = _build_classification_row(result, frame_idx, detection_mapping)
                 backend_detections.append(row)
 
@@ -210,7 +211,7 @@ def write_inference_outputs(
         finally:
             sqlite_client.close()
 
-    if visualization_fn and task == 'classify' and modality != 'image' and results:
+    if visualization_fn and task == 'classify' and modality == 'multi' and images_dir and results:
         out_base = Path('out') / out_subdir if out_subdir else Path('out')
         visualization_fn(
             images_dir=images_dir,

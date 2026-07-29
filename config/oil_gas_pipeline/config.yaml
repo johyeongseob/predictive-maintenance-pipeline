@@ -18,8 +18,10 @@ inference:
   output_type: regression_classification
 
 sensor:
+  model_path: models/ov_models/oil_gas_pipeline/sensor_mlp/sensor_mlp_og.xml
   data_path: datasets/oil_gas_pipeline/sensor_data/market_pipe_thickness_loss_dataset.csv
   scaler_path: models/ov_models/oil_gas_pipeline/sensor_mlp/scaler_params.json
+  device: GPU
   target_value_column: Thickness_Loss_mm
   target_label_column: Condition
 
@@ -28,6 +30,16 @@ sqlite:
   clear_on_run: true
   clear_outputs: true
 
+detection_mapping:
+  image_id: __frame_index__
+  source: source
+  label: label
+  confidence: confidence
+  degradation_score: degradation_score
+  continuous_value: continuous_value
+  material_type: material_type
+  max_pressure: max_pressure
+  time_years: time_years
 agents:
   active: [policy, analysis, evidence]
   confidence_threshold: 0.5
@@ -91,9 +103,6 @@ schema:
     - name: continuous_value
       type: REAL
       required: false
-    - name: thickness_loss_true
-      type: REAL
-      required: false
     - name: material_type
       type: TEXT
       required: false
@@ -109,7 +118,6 @@ schema:
     - source
     - degradation_score
     - continuous_value
-    - thickness_loss_true
     - material_type
     - max_pressure
     - time_years

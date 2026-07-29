@@ -34,7 +34,7 @@ def build_handler_config(config, schema, image_names, output_file=None, out_subd
         "class_names": class_names,
         "sensor_model_path": sensor_cfg.get("model_path"),
         "sensor_data_path": sensor_cfg.get("data_path"),
-        "sensor_device": "CPU",
+        "sensor_device": sensor_cfg.get("device", "CPU"),
         "fusion_weights": config.get("fusion_weights"),
         "schema": schema,
         "image_names": image_names,

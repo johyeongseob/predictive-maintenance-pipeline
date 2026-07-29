@@ -18,6 +18,8 @@ class SensorFlatHandler(InferenceHandler):
         self.config = {}
         self.compiled = None
         self.output_layer = None
+        self.output_layers = {}
+        self.sensor_mode = "mq_gas"
         self.sensor_model_path = None
         self.sensor_device = None
         self.sensor_lookup = {}
@@ -25,6 +27,11 @@ class SensorFlatHandler(InferenceHandler):
         self.sensor_mean = None
         self.sensor_std = None
         self.class_names = {}
+        self.og_samples = []
+        self.og_sample_lookup = {}
+        self.last_image_probs = {}
+        self.last_sensor_probs = {}
+        self.last_sensor_readings = {}
 
     def can_handle(self, config: dict) -> bool:
         inference_cfg = config.get("inference", {})
@@ -40,8 +47,10 @@ class SensorFlatHandler(InferenceHandler):
 
     def load(self, config: dict) -> None:
         import numpy as np
+        from openvino.runtime import Core
 
         self.config = config
+        inference_cfg = config.get("inference", {})
         sensor_cfg = config.get("sensor", {})
         sensor_data_path = config.get("sensor_data_path", sensor_cfg.get("data_path"))
         sensor_model_path = config.get("sensor_model_path", sensor_cfg.get("model_path"))
@@ -49,40 +58,43 @@ class SensorFlatHandler(InferenceHandler):
         self.sensor_model_path = sensor_model_path
         self.sensor_device = device
         self.class_names = config.get("class_names", config.get("names", {}))
+        self.sensor_mode = "oil_gas" if sensor_cfg.get("scaler_path") else "mq_gas"
 
-        self.sensor_lookup = {}
-        self.sensor_readings_lookup = {}
-        all_sensor_vals = []
-        with open(sensor_data_path) as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                img_key = row["Corresponding Image Name"]
-                sensor_vals = [float(row[channel]) for channel in SENSOR_CHANNELS]
-                self.sensor_lookup[img_key] = sensor_vals
-                self.sensor_readings_lookup[img_key] = {
-                    "sensor_raw_json": json.dumps({
-                        channel: sensor_vals[idx]
-                        for idx, channel in enumerate(SENSOR_CHANNELS)
-                    })
-                }
-                all_sensor_vals.append(sensor_vals)
+        if self.sensor_mode == "oil_gas":
+            self._load_oil_gas_samples(sensor_data_path, sensor_cfg)
+        else:
+            self.sensor_lookup = {}
+            self.sensor_readings_lookup = {}
+            all_sensor_vals = []
+            with open(sensor_data_path) as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    img_key = row["Corresponding Image Name"]
+                    sensor_vals = [float(row[channel]) for channel in SENSOR_CHANNELS]
+                    self.sensor_lookup[img_key] = sensor_vals
+                    self.sensor_readings_lookup[img_key] = {
+                        "sensor_raw_json": json.dumps({
+                            channel: sensor_vals[idx]
+                            for idx, channel in enumerate(SENSOR_CHANNELS)
+                        })
+                    }
+                    all_sensor_vals.append(sensor_vals)
 
-        # Compute z-score normalization parameters from full dataset.
-        all_sensor_vals = np.array(all_sensor_vals, dtype=np.float32)
-        self.sensor_mean = all_sensor_vals.mean(axis=0)
-        self.sensor_std = all_sensor_vals.std(axis=0)
-        self.sensor_std[self.sensor_std == 0] = 1.0
-
-    def _ensure_sensor_model_loaded(self) -> None:
-        if self.compiled is not None:
-            return
-
-        from openvino.runtime import Core
+            # Compute z-score normalization parameters from full dataset.
+            all_sensor_vals = np.array(all_sensor_vals, dtype=np.float32)
+            self.sensor_mean = all_sensor_vals.mean(axis=0)
+            self.sensor_std = all_sensor_vals.std(axis=0)
+            self.sensor_std[self.sensor_std == 0] = 1.0
 
         core = Core()
-        model = core.read_model(self.sensor_model_path)
-        self.compiled = core.compile_model(model, self.sensor_device)
+        model = core.read_model(sensor_model_path)
+        self.compiled = core.compile_model(model, device)
         self.output_layer = self.compiled.output(0)
+        self.output_layers = {
+            output.get_any_name(): output
+            for output in self.compiled.outputs
+        }
+
 
     def infer(self, inputs: list, config: dict) -> list[dict]:
         import numpy as np
@@ -92,6 +104,9 @@ class SensorFlatHandler(InferenceHandler):
         image_names = merged_config.get("image_names", inputs)
         class_names = merged_config.get("class_names", self.class_names)
         n_classes = len(class_names)
+
+        if self.sensor_mode == "oil_gas":
+            return self._infer_oil_gas(image_names, class_names)
 
         fusion_weights = merged_config.get("fusion_weights") or {"image": 0.5, "sensor": 0.5}
 
@@ -108,8 +123,6 @@ class SensorFlatHandler(InferenceHandler):
                 img_size=merged_config.get("img_size", inference_cfg.get("imgsz", 640)),
             )
  
-        self._ensure_sensor_model_loaded()
-
         results = []
         print(f"Running sensor MLP inference ({len(image_names)} samples)...")
         for img_name in image_names:
@@ -174,9 +187,139 @@ class SensorFlatHandler(InferenceHandler):
             return fused_results
 
         return results
-
+    
     def get_output_schema(self) -> dict:
         return self.config.get("schema", {})
+
+    def _load_oil_gas_samples(self, sensor_data_path, sensor_cfg):
+        """Load O&G tabular sensor rows and build 17-dim model features."""
+        import numpy as np
+
+        scaler_path = sensor_cfg.get("scaler_path")
+        if not scaler_path:
+            raise ValueError("Oil/gas sensor inference requires sensor.scaler_path")
+
+        with open(scaler_path) as f:
+            scaler = json.load(f)
+
+        numeric_features = scaler["input_features"]
+        material_values = scaler["material_values"]
+        grade_values = scaler["grade_values"]
+        numeric_mean = np.array(scaler["numeric_mean"], dtype=np.float32)
+        numeric_std = np.array(scaler["numeric_std"], dtype=np.float32)
+        numeric_std[numeric_std == 0] = 1.0
+
+        target_value_column = sensor_cfg.get("target_value_column", "Thickness_Loss_mm")
+        target_label_column = sensor_cfg.get("target_label_column", "Condition")
+
+        self.og_samples = []
+        self.og_sample_lookup = {}
+        if not self.class_names and scaler.get("condition_classes"):
+            self.class_names = {
+                idx: name
+                for idx, name in enumerate(scaler["condition_classes"])
+            }
+
+        with open(sensor_data_path) as f:
+            reader = csv.DictReader(f)
+            for idx, row in enumerate(reader):
+                numeric = np.array(
+                    [float(row[name]) for name in numeric_features],
+                    dtype=np.float32,
+                )
+                numeric = (numeric - numeric_mean) / numeric_std
+                material_onehot = [
+                    1.0 if row.get("Material") == value else 0.0
+                    for value in material_values
+                ]
+                grade_onehot = [
+                    1.0 if row.get("Grade") == value else 0.0
+                    for value in grade_values
+                ]
+                features = np.array(
+                    numeric.tolist() + material_onehot + grade_onehot,
+                    dtype=np.float32,
+                )
+
+                source = f"row_{idx}"
+                metadata = {
+                    "sensor_raw_json": json.dumps(row),
+                    "material_type": row.get("Material"),
+                    "max_pressure": float(row["Max_Pressure_psi"]),
+                    "time_years": float(row["Time_Years"]),
+                }
+                if target_label_column in row:
+                    metadata["condition_true"] = row[target_label_column]
+
+                sample = {
+                    "source": source,
+                    "features": features,
+                    "metadata": metadata,
+                }
+                self.og_samples.append(sample)
+                self.og_sample_lookup[source] = sample
+
+        print(f"Loaded oil/gas sensor samples: {len(self.og_samples)}")
+
+    def _infer_oil_gas(self, image_names, class_names):
+        """Run O&G regression + condition classification inference."""
+        import numpy as np
+
+        if not class_names:
+            class_names = self.class_names
+        n_classes = len(class_names)
+        
+        # Use requested row ids only when they match O&G sources; otherwise run all CSV rows.
+        if image_names and any(name in self.og_sample_lookup for name in image_names):
+            requested = image_names
+        else:
+            requested = [sample["source"] for sample in self.og_samples]
+
+        samples = [
+            self.og_sample_lookup[name]
+            for name in requested
+            if name in self.og_sample_lookup
+        ]
+
+        print(f"Running oil/gas sensor MLP inference ({len(samples)} samples)...")
+        results = []
+        for sample in samples:
+            output = self.compiled([sample["features"].reshape(1, -1)])
+            thickness = self._get_named_output(output, "thickness_loss_pred")[0][0]
+            logits = self._get_named_output(output, "condition_logits")[0]
+            exp_probs = np.exp(logits - np.max(logits))
+            probs = exp_probs / exp_probs.sum()
+
+            best_idx = int(np.argmax(probs))
+            label = class_names.get(best_idx, str(best_idx))
+            metadata = sample["metadata"]
+            result = {
+                "source": sample["source"],
+                "label": label,
+                "confidence": float(probs[best_idx]),
+                "label_id": best_idx,
+                "probabilities": {
+                    class_names.get(i, str(i)): float(probs[i])
+                    for i in range(n_classes)
+                },
+                "degradation_score": float(probs[n_classes - 1]),
+                "continuous_value": float(thickness),
+            }
+            result.update(metadata)
+            results.append(result)
+
+        print("✓ Oil/gas sensor inference completed")
+        return results
+
+    def _get_named_output(self, output, output_name):
+        """Return an OpenVINO output tensor by friendly output name."""
+        if output_name not in self.output_layers:
+            available = ", ".join(sorted(self.output_layers)) or "none"
+            raise ValueError(
+                f"Model output '{output_name}' not found. "
+                f"Available outputs: {available}"
+            )
+        return output[self.output_layers[output_name]]
 
     def fuse(
         self,
