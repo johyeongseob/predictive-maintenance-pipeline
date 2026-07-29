@@ -21,7 +21,10 @@ class SQLQueryExecutor:
         """
         self.db = sqlite_client
         self.llm = llm
-        self.schema = sqlite_client.get_schema()
+        if hasattr(sqlite_client, "get_schema_with_sensor_columns"):
+            self.schema = sqlite_client.get_schema_with_sensor_columns()
+        else:
+            self.schema = sqlite_client.get_schema()
     
     def _generate_sql(self, natural_query: str) -> str:
         """

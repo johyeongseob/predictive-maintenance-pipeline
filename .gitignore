@@ -63,3 +63,27 @@ tests/out/
 
 web_app/.web_app.pid
 web_app/web_app.log
+
+
+# Local debug files
+datasets/gas_detection/information.py
+datasets/pipeline_defects_detection/bbox.py
+src/utility/check.py
+out/check_sensor_raw_json_db.py
+benchmarks/chat_intent_llm_results.json
+
+# Local generated dataset outputs
+datasets/pipeline_defects_detection/005588_Deformation.jpg
+datasets/pipeline_defects_detection/video/
+
+# GSoC planning documents (local only)
+GSoC_Timeline.md
+task2.md
+task3a.md
+
+# Benchmark scripts and related outputs
+benchmarks/
+baseline/
+
+# Local DLStreamer Docker experiments
+Dockerfile.dlstreamer-x264

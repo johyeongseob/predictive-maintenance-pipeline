@@ -9,6 +9,7 @@ names:
   3: Smoke
 
 inference:
+  handler: sensor_flat
   task: classify  # 'detect' or 'classify'
   model_path: models/ov_models/gas_detection/image/best.xml
   device: GPU
@@ -32,10 +33,11 @@ sqlite:
   clear_outputs: true
 
 agents:
+  active: [policy, analysis, evidence]
   confidence_threshold: 0.5
   report_top_n: 5
   execution_mode: sequential
-  shared_device: NPU
+  shared_device: GPU
 
   policy:
     llm_mode: model
@@ -50,12 +52,12 @@ agents:
   evidence:
     llm_mode: model
     model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
-    device: NPU
+    device: GPU
 
 glue:
   mode: model
   model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
-  device: NPU
+  device: GPU
   max_steps: 4
   verbose: true
   enable_cache: false
@@ -95,6 +97,9 @@ schema:
     - name: sensor_confidence
       type: REAL
       required: false
+    - name: sensor_raw_json
+      type: TEXT
+      required: false
     - name: created_at
       type: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       required: false
@@ -112,3 +117,4 @@ detection_mapping:
   confidence: confidence
   image_confidence: image_confidence
   sensor_confidence: sensor_confidence
+  sensor_raw_json: sensor_raw_json

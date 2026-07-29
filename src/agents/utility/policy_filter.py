@@ -22,7 +22,8 @@ def filter_detections(detections: List[Dict[str, Any]], policy: Dict[str, Any]) 
             {
                 "min_conf_global": float,
                 "per_class_thresholds": {"label": float, ...},
-                "bbox_min_size": {"width": float, "height": float}
+                "bbox_min_size": {"width": float, "height": float},
+                "min_sensor_confidence": float
             }
             
     Returns:
@@ -34,6 +35,7 @@ def filter_detections(detections: List[Dict[str, Any]], policy: Dict[str, Any]) 
     min_conf_global = policy.get("min_conf_global", 0.0)
     per_class_thresholds = policy.get("per_class_thresholds", {})
     bbox_min_size = policy.get("bbox_min_size", {})
+    min_sensor_confidence = policy.get("min_sensor_confidence")
     
     filtered = []
     
@@ -46,6 +48,12 @@ def filter_detections(detections: List[Dict[str, Any]], policy: Dict[str, Any]) 
             if confidence < threshold:
                 continue
         
+        # Sensor confidence filter (only if sensor_confidence field exists)
+        sensor_confidence = det.get("sensor_confidence")
+        if sensor_confidence is not None and min_sensor_confidence is not None:
+            if sensor_confidence < min_sensor_confidence:
+                continue
+
         # Bbox size filter (only if width/height fields exist AND policy specifies min size)
         if bbox_min_size:
             # Support both flat keys and nested bbox dict

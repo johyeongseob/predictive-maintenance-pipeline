@@ -217,7 +217,31 @@ class SQLiteClient:
                 lines.append(f"  - idx_{idx_col} on {idx_col}")
         
         return '\n'.join(lines) + '\n'
-    
+
+    def get_schema_with_sensor_columns(self) -> str:
+        """
+        Get database schema with sensor column documentation for SQLCoder.
+
+        Returns:
+            Schema description string including sensor_raw_json usage notes.
+        """
+        schema_text = self.get_schema()
+        column_names = {col['name'] for col in self.schema['columns']}
+        if 'sensor_raw_json' not in column_names:
+            return schema_text
+        sensor_lines = [
+            "Sensor column notes:",
+            "  - sensor_raw_json: TEXT column containing a JSON object with raw gas sensor readings.",
+            "  - sensor_raw_json keys: MQ2, MQ3, MQ5, MQ6, MQ7, MQ8, MQ135.",
+            "  - Use SQLite json_extract(sensor_raw_json, '$.MQ2') to query a sensor value.",
+            "  - If a question mentions MQ2, MQ3, MQ5, MQ6, MQ7, MQ8, or MQ135, use json_extract(sensor_raw_json, '$.<sensor_key>').",
+            "  - Do not map MQ sensor readings to confidence.",
+            "  - Example: SELECT image_id, label, json_extract(sensor_raw_json, '$.MQ2') AS MQ2 FROM detections;",
+        ]
+
+        return schema_text + '\n'.join(sensor_lines) + '\n'
+     
+
     def count_detections(self) -> int:
         """Get total count of detections."""
         cursor = self.conn.cursor()

@@ -39,7 +39,7 @@ def analysis_agent(state: Dict[str, Any]) -> Dict[str, Any]:
         return {"meta": meta}
     
     # Generate statistics
-    stats = _generate_stats(filtered)
+    stats = _generate_stats(filtered, policy)
     
     # Generate text summary with LLM if available
     summary_text = ""
@@ -74,9 +74,10 @@ def analysis_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     return {"meta": {**meta, "analysis": analysis}}
 
 
-def _generate_stats(detections):
+def _generate_stats(detections, policy=None):
     """Generate statistics from filtered detections."""
     label_counts = Counter([d["label"] for d in detections])
+    policy = policy or {}
     
     label_confidences = {}
     for label in label_counts:
@@ -92,7 +93,112 @@ def _generate_stats(detections):
     return {
         "labels_found": list(label_counts.keys()),
         "counts_per_label": dict(label_counts),
-        "confidence_stats": label_confidences
+        "confidence_stats": label_confidences,
+        # Image-vs-sensor distribution, modality dominance, and anomaly counts.
+        "sensor_statistics": _generate_sensor_stats(detections, policy)
+    }
+
+
+def _safe_float(value):
+    """Convert numeric-like values to float, returning None when unavailable."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _numeric_stats(values):
+    """Return compact distribution stats for numeric values."""
+    nums = [_safe_float(v) for v in values]
+    nums = [v for v in nums if v is not None]
+    if not nums:
+        return {"count": 0}
+    return {
+        "count": len(nums),
+        "mean": round(statistics.mean(nums), 3),
+        "median": round(statistics.median(nums), 3),
+        "min": round(min(nums), 3),
+        "max": round(max(nums), 3)
+    }
+
+
+def _parse_sensor_raw(raw_value):
+    """Parse sensor_raw_json into a dict when present."""
+    if isinstance(raw_value, dict):
+        return raw_value
+    if not raw_value:
+        return {}
+    try:
+        parsed = json.loads(raw_value)
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+# Build sensor statistics for the analysis report.
+def _generate_sensor_stats(detections, policy):
+    """Generate sensor/image modality and raw sensor alert statistics."""
+    image_values = []
+    sensor_values = []
+    modality_by_label = {}
+    anomaly_count = 0
+    anomaly_by_channel = Counter()
+    thresholds = policy.get("sensor_alert_thresholds", {}) or {}
+
+    for det in detections:
+        label = det.get("label", "unknown")
+        image_conf = _safe_float(det.get("image_confidence"))
+        sensor_conf = _safe_float(det.get("sensor_confidence"))
+
+        if image_conf is not None:
+            image_values.append(image_conf)
+        if sensor_conf is not None:
+            sensor_values.append(sensor_conf)
+
+        if image_conf is not None and sensor_conf is not None:
+            label_stats = modality_by_label.setdefault(
+                label,
+                {"image_dominant": 0, "sensor_dominant": 0, "tie": 0}
+            )
+            if image_conf > sensor_conf:
+                label_stats["image_dominant"] += 1
+            elif sensor_conf > image_conf:
+                label_stats["sensor_dominant"] += 1
+            else:
+                label_stats["tie"] += 1
+
+        sensor_raw = _parse_sensor_raw(det.get("sensor_raw_json"))
+        triggered = False
+        for channel, threshold in thresholds.items():
+            reading = _safe_float(sensor_raw.get(channel))
+            threshold_value = _safe_float(threshold)
+            if reading is not None and threshold_value is not None and reading > threshold_value:
+                anomaly_by_channel[channel] += 1
+                triggered = True
+        if triggered:
+            anomaly_count += 1
+    
+    mean_delta = None
+    paired_deltas = []
+    for det in detections:
+        image_conf = _safe_float(det.get("image_confidence"))
+        sensor_conf = _safe_float(det.get("sensor_confidence"))
+        if image_conf is not None and sensor_conf is not None:
+            paired_deltas.append(sensor_conf - image_conf)
+    if paired_deltas:
+        mean_delta = round(statistics.mean(paired_deltas), 3)
+
+    return {
+        "image_confidence_distribution": _numeric_stats(image_values),
+        "sensor_confidence_distribution": _numeric_stats(sensor_values),
+        "mean_sensor_minus_image_confidence": mean_delta,
+        "modality_dominance_per_label": modality_by_label,
+        "anomaly_flags": {
+            "count": anomaly_count,
+            "thresholds": thresholds,
+            "by_channel": dict(anomaly_by_channel)
+        }
     }
 
 
@@ -125,6 +231,43 @@ def _generate_fallback_summary(stats: Dict) -> str:
         lines.append(f"    Count: {stat['count']}")
         lines.append(f"    Mean: {stat['mean']:.3f}")
         lines.append(f"    Range: {stat['min']:.3f} - {stat['max']:.3f}")
-    
+
+    # Add sensor summary to the fallback report.
+    sensor_stats = stats.get("sensor_statistics", {})
+    lines.append("\nSensor Statistics:")
+    image_dist = sensor_stats.get("image_confidence_distribution", {})
+    sensor_dist = sensor_stats.get("sensor_confidence_distribution", {})
+    if image_dist.get("count") and sensor_dist.get("count"):
+        lines.append(
+            f"  Image Confidence Mean: {image_dist['mean']:.3f} "
+            f"(range {image_dist['min']:.3f} - {image_dist['max']:.3f})"
+        )
+        lines.append(
+            f"  Sensor Confidence Mean: {sensor_dist['mean']:.3f} "
+            f"(range {sensor_dist['min']:.3f} - {sensor_dist['max']:.3f})"
+        )
+        delta = sensor_stats.get("mean_sensor_minus_image_confidence")
+        if delta is not None:
+            lines.append(f"  Mean Sensor-Image Confidence Delta: {delta:.3f}")
+
+    lines.append("  Modality Dominance by Class:")
+    modality = sensor_stats.get("modality_dominance_per_label", {})
+    if modality:
+        for label, counts_for_label in modality.items():
+            lines.append(
+                f"    {label}: image={counts_for_label.get('image_dominant', 0)}, "
+                f"sensor={counts_for_label.get('sensor_dominant', 0)}, "
+                f"tie={counts_for_label.get('tie', 0)}"
+            )
+    else:
+        lines.append("    No paired image/sensor confidence data available.")
+
+    anomaly = sensor_stats.get("anomaly_flags", {})
+    lines.append(f"  Sensor Alert Samples: {anomaly.get('count', 0)}")
+    by_channel = anomaly.get("by_channel", {})
+    if by_channel:
+        channel_summary = ", ".join(f"{k}={v}" for k, v in sorted(by_channel.items()))
+        lines.append(f"  Alert Channels: {channel_summary}")
+
     lines.append("\n" + "="*60)
     return "\n".join(lines)

@@ -21,6 +21,13 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.utility.chat_intent import (
+    classify_intent_keyword,
+    classify_intent_with_llm,
+    resolve_active_chat_mode,
+)
+
+
 app = Flask(
     __name__,
     template_folder=str(Path(__file__).resolve().parent / "templates"),
@@ -370,20 +377,44 @@ def chat_init():
 @app.route("/api/chat/ask", methods=["POST"])
 def chat_ask():
     """
-    Expects JSON: {mode: "analysis"|"evidence"|"sql", question: "..."}
-    Returns JSON: {answer: "..."}
+    Expects JSON: {question: "...", optional mode: "analysis"|"evidence"|"sql"|"auto_rule"|"auto_llm"}
+    Returns JSON: {answer: "...", detected_mode: "..."}
     """
     data = request.get_json(force=True)
-    mode = data.get("mode", "analysis")
+    requested_mode = data.get("mode", "auto_llm")
     question = data.get("question", "").strip()
     if not question:
         return jsonify({"error": "Empty question"}), 400
+
+    routing_strategy = "manual"
+    if requested_mode in {"auto", "auto_rule"}:
+        mode = classify_intent_keyword(question)
+        routing_strategy = "keyword"
+
+    elif requested_mode == "auto_llm":
+        mode = None
+        routing_strategy = "llm"
+
+    elif requested_mode in {"analysis", "evidence", "sql"}:
+        mode = requested_mode
+        
+    else:
+        return jsonify({"error": f"Unknown mode: {requested_mode}"}), 400
 
     try:
         chat = _get_chat()
     except Exception as e:
         logger.exception("Chat engine not ready")
         return jsonify({"error": "Chat engine not ready"}), 503
+
+    if routing_strategy == "llm":
+        try:
+            mode = classify_intent_with_llm(question, chat.llm)
+        except Exception:
+            logger.exception("LLM intent classification failed")
+            return jsonify({"error": "LLM intent classification failed"}), 500
+
+    mode = resolve_active_chat_mode(mode, chat.config)
 
     try:
         if mode == "analysis":
@@ -408,9 +439,11 @@ def chat_ask():
 
             # Extract image references from raw query results for frame/image display
             image_refs = []
+            sql_rows = []
             try:
                 raw = chat.db_client.execute_query(sql_query)
                 if raw:
+                    sql_rows = [dict(row) for row in raw[:50]]
                     cols = list(raw[0].keys())
                     seen = set()
                     if 'frame_id' in cols:
@@ -440,12 +473,18 @@ def chat_ask():
             except Exception:
                 logger.debug("Image ref extraction failed; non-critical", exc_info=True)
 
-            return jsonify({"answer": answer, "frame_ids": [r["id"] for r in image_refs[:50]], "image_refs": image_refs[:50]})
+            return jsonify({
+                "answer": answer, 
+                "detected_mode": mode, 
+                "frame_ids": [r["id"] for r in image_refs[:50]], 
+                "image_refs": image_refs[:50],
+                "sql_rows": sql_rows,
+                })
 
         else:
             return jsonify({"error": f"Unknown mode: {mode}"}), 400
 
-        return jsonify({"answer": answer})
+        return jsonify({"answer": answer, "detected_mode": mode})
 
     except Exception as e:
         logger.exception("Chat request failed")
@@ -531,6 +570,8 @@ def list_tickets():
                 fid = None
             tickets.append({
                 "filename": f.name,
+                "path": str(f),
+                "url": f"/ticket/{f.name}",
                 "frame_id": fid,
                 "size_kb": round(f.stat().st_size / 1024, 1),
             })

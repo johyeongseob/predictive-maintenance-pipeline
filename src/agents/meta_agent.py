@@ -15,11 +15,7 @@ Key Design Principles:
 """
 
 from typing import Dict, Any
-from langgraph.graph import StateGraph, END
 from .utility.state import AgentState
-from .policy_agent import policy_agent
-from .analysis_agent import analysis_agent
-from .evidence_agent import evidence_agent
 
 
 def meta_entry(state: AgentState) -> Dict[str, Any]:
@@ -112,13 +108,26 @@ def meta_collect_policy(state: AgentState) -> Dict[str, Any]:
     config = resources.get("config", {})
     agents_cfg = config.get("agents", {})
     execution_mode = agents_cfg.get("execution_mode", "sequential")
-    
+    active_agents = agents_cfg.get("active", ["policy", "analysis", "evidence"])
+    if isinstance(active_agents, str):
+        active_agents = [active_agents]
+
     print(f"[Meta Agent] ✅ Phase 2 prepared")
-    if execution_mode == "parallel":
-        print(f"[Meta Agent] 🚀 Launching analysis agent + evidence agent (parallel)")
+    downstream_agents = [
+        agent for agent in active_agents
+        if agent in {"analysis", "evidence"}
+    ]
+
+    if downstream_agents:
+        if execution_mode == "parallel":
+            agent_text = " + ".join(f"{agent} agent" for agent in downstream_agents)
+            print(f"[Meta Agent] 🚀 Launching {agent_text} (parallel)")
+        else:
+            agent_text = " → ".join(f"{agent} agent" for agent in downstream_agents)
+            print(f"[Meta Agent] 🚀 Launching {agent_text} (sequential)")
     else:
-        print(f"[Meta Agent] 🚀 Launching analysis agent → evidence agent (sequential)")
-    
+        print("[Meta Agent] 🚀 No downstream agents active")
+
     return {"meta": meta}
 
 
@@ -141,6 +150,11 @@ def collect_results(state: AgentState) -> Dict[str, Any]:
     # Gather results from all agents
     policy = meta.get("policy", {})
     analysis_data = meta.get("analysis", {})
+    resources = meta.get("resources", {})
+    config = resources.get("config", {})
+    active_agents = config.get("agents", {}).get("active", ["policy", "analysis", "evidence"])
+    if isinstance(active_agents, str):
+        active_agents = [active_agents]
     
     # Create final status
     final_status = {
@@ -149,86 +163,31 @@ def collect_results(state: AgentState) -> Dict[str, Any]:
             "min_conf_global": policy.get("min_conf_global", 0.0),
             "per_class_thresholds": policy.get("per_class_thresholds", {}),
             "bbox_min_size": policy.get("bbox_min_size", {})
-        },
-        "analysis": {
-            "total_defects": analysis_data.get("total_defects", 0),
-            "report_saved": True
-        },
-        "evidence": {
-            "trail_saved": True,
-            "audit_complete": True
         }
     }
     
+    if "analysis" in active_agents:
+        final_status["analysis"] = {
+            "total_defects": analysis_data.get("total_defects", 0),
+            "report_saved": True
+        }
+    
+    if "evidence" in active_agents:
+        final_status["evidence"] = {
+            "trail_saved": True,
+            "audit_complete": True
+        }
+
     meta["final_status"] = final_status
     
     print(f"[Meta Agent] 📊 Final Summary:")
     print(f"  • Policy: min_conf={final_status['policy']['min_conf_global']}")
-    print(f"  • Analysis: {final_status['analysis']['total_defects']} defects")
-    print(f"  • Evidence: Audit trail generated")
+    if "analysis" in active_agents:
+        print(f"  • Analysis: {final_status['analysis']['total_defects']} defects")
+    if "evidence" in active_agents:
+        print(f"  • Evidence: Audit trail generated")
     print(f"[Meta Agent] ✅ Workflow Complete!")
     print("="*70 + "\n")
     
     return {"meta": meta}
 
-
-def build_graph(execution_mode="sequential"):
-    """
-    Build LangGraph workflow with hub-and-spoke architecture.
-    
-    Args:
-        execution_mode: 'sequential' or 'parallel'
-    
-    Workflow:
-        START
-          ↓
-        meta_entry (hub: initialize)
-          ↓
-        policy_agent
-          ↓
-        meta_collect_policy (hub: redistribute policy data)
-          ↓
-        [Sequential: analysis → evidence]
-        [Parallel: analysis + evidence simultaneously]
-          ↓
-        collect_results (hub: finalize)
-          ↓
-         END
-    
-    Returns:
-        Compiled LangGraph StateGraph
-    """
-    builder = StateGraph(AgentState)
-    
-    # Add meta nodes (hubs)
-    builder.add_node("meta_entry", meta_entry)
-    builder.add_node("meta_collect_policy", meta_collect_policy)
-    builder.add_node("collect_results", collect_results)
-    
-    # Add agent nodes (spokes)
-    builder.add_node("policy", policy_agent)
-    builder.add_node("analysis", analysis_agent)
-    builder.add_node("evidence", evidence_agent)
-    
-    # Phase 1: Entry → Policy → Collect
-    builder.set_entry_point("meta_entry")
-    builder.add_edge("meta_entry", "policy")
-    builder.add_edge("policy", "meta_collect_policy")
-    
-    # Phase 2: Mode-dependent execution
-    if execution_mode == "parallel":
-        # Parallel: Both agents run simultaneously
-        builder.add_edge("meta_collect_policy", "analysis")
-        builder.add_edge("meta_collect_policy", "evidence")
-        builder.add_edge("analysis", "collect_results")
-        builder.add_edge("evidence", "collect_results")
-    else:
-        # Sequential: analysis → evidence
-        builder.add_edge("meta_collect_policy", "analysis")
-        builder.add_edge("analysis", "evidence")
-        builder.add_edge("evidence", "collect_results")
-    
-    # End
-    builder.add_edge("collect_results", END)
-    
-    return builder.compile()
