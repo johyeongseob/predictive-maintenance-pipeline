@@ -1,19 +1,27 @@
 display_text: "Oil Gas Pipeline"
 modality: sensor  # 'image', 'sensor', or 'multi'
 
-nc: 1
+nc: 3
 names:
-  0: PlaceholderClass
+  0: Normal
+  1: Moderate
+  2: Critical
 
 inference:
   handler: sensor_flat
-  task: classify  # 'detect' or 'classify'
-  model_path: models/ov_models/oil_gas_pipeline/model.xml
+  task: classify
+  model_path: models/ov_models/oil_gas_pipeline/sensor_mlp/sensor_mlp_og.xml
   device: GPU
   confidence_threshold: 0.25
   imgsz: 640
-  input_mode: images
-  images_path: datasets/oil_gas_pipeline/images/val
+  input_mode: sensor
+  output_type: regression_classification
+
+sensor:
+  data_path: datasets/oil_gas_pipeline/sensor_data/market_pipe_thickness_loss_dataset.csv
+  scaler_path: models/ov_models/oil_gas_pipeline/sensor_mlp/scaler_params.json
+  target_value_column: Thickness_Loss_mm
+  target_label_column: Condition
 
 sqlite:
   db_path: out/oil_gas_pipeline/sql_data/detections.db
@@ -77,7 +85,31 @@ schema:
     - name: created_at
       type: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       required: false
+    - name: degradation_score
+      type: REAL
+      required: false
+    - name: continuous_value
+      type: REAL
+      required: false
+    - name: thickness_loss_true
+      type: REAL
+      required: false
+    - name: material_type
+      type: TEXT
+      required: false
+    - name: max_pressure
+      type: REAL
+      required: false
+    - name: time_years
+      type: REAL
+      required: false
   indexes:
     - label
     - confidence
     - source
+    - degradation_score
+    - continuous_value
+    - thickness_loss_true
+    - material_type
+    - max_pressure
+    - time_years
