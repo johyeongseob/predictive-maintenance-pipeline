@@ -41,7 +41,7 @@ detection_mapping:
   max_pressure: max_pressure
   time_years: time_years
 agents:
-  active: [policy, analysis, evidence]
+  active: [policy, analysis, evidence, corrosion]
   confidence_threshold: 0.5
   report_top_n: 5
   execution_mode: sequential
@@ -58,6 +58,11 @@ agents:
     device: GPU
 
   evidence:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+  
+  corrosion:
     llm_mode: model
     model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
     device: GPU

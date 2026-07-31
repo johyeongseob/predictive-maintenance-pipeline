@@ -153,6 +153,7 @@ def main():
         policy_llm = shared_llm
         analysis_llm = shared_llm
         evidence_llm = shared_llm
+        corrosion_llm = shared_llm
     
     else:  # parallel mode
         # Parallel: Each agent gets separate LLM instance (can use different devices)
@@ -160,6 +161,7 @@ def main():
         policy_llm = _create_llm(cfg, "policy")
         analysis_llm = _create_llm(cfg, "analysis")
         evidence_llm = _create_llm(cfg, "evidence")
+        corrosion_llm = _create_llm(cfg, "corrosion")
         
         # Warm up all LLMs SEQUENTIALLY (one at a time) to avoid NPU contention
         print(f"[Setup] 🔥 Warming up LLMs (sequential)...")
@@ -172,6 +174,9 @@ def main():
         if evidence_llm and hasattr(evidence_llm, 'warmup'):
             print(f"[Setup]   - Warming up evidence LLM...")
             evidence_llm.warmup()
+        if corrosion_llm and hasattr(corrosion_llm, 'warmup'):
+            print(f"[Setup]   - Warming up corrosion LLM...")
+            corrosion_llm.warmup()
         print(f"[Setup] ✅ Warmup complete")
 
     # Load prompts
@@ -188,14 +193,16 @@ def main():
             "llms": {
                 "policy": policy_llm,
                 "analysis": analysis_llm,
-                "evidence": evidence_llm
+                "evidence": evidence_llm,
+                "corrosion": corrosion_llm,
             },
             "config": cfg,
             "out_dir": out_dir,
             "prompts": {
                 "policy_prompt": prompts.get("policy", ""),
                 "analysis_prompt": prompts.get("analysis", ""),
-                "evidence_prompt": prompts.get("evidence", "")
+                "evidence_prompt": prompts.get("evidence", ""),
+                "corrosion_prompt": prompts.get("corrosion", ""),
             }
         }
     }
@@ -229,6 +236,9 @@ def main():
     if "evidence" in active_agents:
         print(f"   • Evidence: {out_dir}/agent/evidence.json")
         print(f"   • Audit Trail: {out_dir}/agent/evidence_trail.txt")
+    if "corrosion" in active_agents:
+        print(f"   • Corrosion: {out_dir}/agent/corrosion_report.json")
+        print(f"   • Corrosion Summary: {out_dir}/agent/corrosion_summary.txt")
 
 
 if __name__ == "__main__":

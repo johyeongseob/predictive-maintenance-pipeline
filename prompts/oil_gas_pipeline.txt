@@ -7,24 +7,48 @@ Task: classify
 Modality: sensor
 
 [POLICY]
-Define filtering rules for this use case.
-Return a policy JSON with min_conf_global and per_class_thresholds.
+Define filtering rules for oil and gas pipeline degradation.
+This use case uses regression-style filtering.
+continuous_value means the predicted thickness loss.
+degradation_score means the probability of the Critical condition.
+
+Return a policy JSON with:
+- policy_type: "regression"
+- degradation_threshold
+- corrosion_alert_level
+- min_conf_global
+- per_class_thresholds
+
+Flag high-degradation rows when continuous_value > degradation_threshold.
 
 [ANALYSIS]
-Generate a concise analysis report from the provided detection statistics.
+Generate a concise analysis report from the oil and gas pipeline statistics.
+Focus on condition distribution, predicted thickness loss, high-degradation samples, and material-level degradation patterns.
+Use continuous_value as predicted thickness loss.
+Use material_type to compare degradation across pipe materials.
+Keep the report short and summarize only the top 3 materials.
 Use actual values only and avoid placeholders in the final report.
 
 [EVIDENCE]
 Generate a concise audit trail showing policy decisions and traceability.
 Output plain text only.
 
+[CORROSION]
+Generate a concise corrosion specialist summary for oil and gas pipeline degradation.
+Focus on corrosion risk, material-pressure combinations, and maintenance priority.
+
 [SQL_SCHEMA]
 Database Schema:
 Table: detections
 Columns:
   - id (INTEGER): Primary key
-  - image_id (INTEGER): Image/sample identifier
-  - source (TEXT): Source image or frame path
+  - image_id (INTEGER): Sample row identifier
+  - source (TEXT): Source sample identifier
   - label (TEXT): Predicted class label
   - confidence (REAL): Prediction confidence
   - created_at (TIMESTAMP): Insert timestamp
+  - degradation_score (REAL): Probability of Critical condition
+  - continuous_value (REAL): Predicted thickness loss
+  - material_type (TEXT): Pipe material type
+  - max_pressure (REAL): Maximum pressure value
+  - time_years (REAL): Pipeline operating time in years

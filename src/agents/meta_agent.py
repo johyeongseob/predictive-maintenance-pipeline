@@ -101,6 +101,12 @@ def meta_collect_policy(state: AgentState) -> Dict[str, Any]:
         "policy_metrics": policy_metrics,
         "resources": resources
     }
+
+    meta["for_corrosion"] = {
+        "detections": all_detections,
+        "policy": policy,
+        "resources": resources
+    }
     
     meta["policy_completed"] = True
     
@@ -115,7 +121,7 @@ def meta_collect_policy(state: AgentState) -> Dict[str, Any]:
     print(f"[Meta Agent] ✅ Phase 2 prepared")
     downstream_agents = [
         agent for agent in active_agents
-        if agent in {"analysis", "evidence"}
+        if agent in {"analysis", "evidence", "corrosion"}
     ]
 
     if downstream_agents:
@@ -177,6 +183,12 @@ def collect_results(state: AgentState) -> Dict[str, Any]:
             "trail_saved": True,
             "audit_complete": True
         }
+    
+    if "corrosion" in active_agents:
+        final_status["corrosion"] = {
+            "report_saved": True,
+            "specialist_complete": True
+        }
 
     meta["final_status"] = final_status
     
@@ -186,6 +198,8 @@ def collect_results(state: AgentState) -> Dict[str, Any]:
         print(f"  • Analysis: {final_status['analysis']['total_defects']} defects")
     if "evidence" in active_agents:
         print(f"  • Evidence: Audit trail generated")
+    if "corrosion" in active_agents:
+        print(f"  • Corrosion: Specialist report generated")
     print(f"[Meta Agent] ✅ Workflow Complete!")
     print("="*70 + "\n")
     
