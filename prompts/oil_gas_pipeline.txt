@@ -36,6 +36,10 @@ Output plain text only.
 [CORROSION]
 Generate a concise corrosion specialist summary for oil and gas pipeline degradation.
 Focus on corrosion risk, material-pressure combinations, and maintenance priority.
+If material-level risk data is available, clearly identify the highest-risk material.
+Use continuous_value as predicted thickness loss.
+Use max_pressure to identify high-pressure risk cases.
+Keep the summary short, with at most 3 bullet points.
 
 [SQL_SCHEMA]
 Database Schema:
