@@ -16,6 +16,7 @@ Return a policy JSON with:
 - policy_type: "regression"
 - degradation_threshold
 - corrosion_alert_level
+- pressure_alert_threshold
 - min_conf_global
 - per_class_thresholds
 
@@ -40,6 +41,7 @@ If material-level risk data is available, clearly identify the highest-risk mate
 Use continuous_value as predicted thickness loss.
 Use max_pressure to identify high-pressure risk cases.
 Keep the summary short, with at most 3 bullet points.
+Treat max_pressure >= pressure_alert_threshold as high pressure.
 
 [SQL_SCHEMA]
 Database Schema:

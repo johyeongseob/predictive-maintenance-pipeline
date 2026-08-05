@@ -38,7 +38,7 @@ def policy_agent(state: Dict[str, Any]) -> Dict[str, Any]:
         try:
             policy = _generate_policy_with_llm(llm, policy_prompt, class_names, config)
         except Exception as e:
-            print(f"[Policy Agent] ?좑툘  LLM failed ({e}), using config fallback")
+            print("[Policy Agent] LLM failed, using config fallback")
             policy = fallback_policy
     else:
         policy = fallback_policy

@@ -2,6 +2,7 @@
   "policy_type": "regression",
   "degradation_threshold": 5.0,
   "corrosion_alert_level": "high",
+  "pressure_alert_threshold": 1500.0,
   "min_conf_global": 0.5,
   "per_class_thresholds": {
     "Normal": 0.5,

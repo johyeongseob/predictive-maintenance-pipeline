@@ -241,12 +241,22 @@ class SensorFlatHandler(InferenceHandler):
                     dtype=np.float32,
                 )
 
+                label_columns = {
+                    target_value_column,
+                    target_label_column,
+                }
+                sensor_raw = {
+                    key: value
+                    for key, value in row.items()
+                    if key not in label_columns
+                }
+
                 source = f"row_{idx}"
                 metadata = {
-                    "sensor_raw_json": json.dumps(row),
+                    "sensor_raw_json": json.dumps(sensor_raw),
                     "material_type": row.get("Material"),
-                    "max_pressure": float(row["Max_Pressure_psi"]),
-                    "time_years": float(row["Time_Years"]),
+                    "max_pressure": float(row.get("Max_Pressure_psi")) if row.get("Max_Pressure_psi") else None,
+                    "time_years": float(row.get("Time_Years")) if row.get("Time_Years") else None,
                 }
                 if target_label_column in row:
                     metadata["condition_true"] = row[target_label_column]
