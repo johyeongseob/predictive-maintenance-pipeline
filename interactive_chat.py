@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import argparse
 import json
 import yaml
 import re
@@ -21,10 +22,12 @@ class InteractiveChat:
     # Common instruction for all agent queries
     QA_INSTRUCTION = "Answer using only information from the context above. Do not add information not present in the context. Be concise."
     
-    def __init__(self):
+    def __init__(self, config_path=None):
         self.llm = None
         self.sql_llm = None  # Dedicated SQL model (sqlcoder)
         self.config = None
+        self.config_path = config_path
+        self.use_case_id = None
         self.db_client = None
         self.analysis_summary = None
         self.evidence_data = None
@@ -32,11 +35,16 @@ class InteractiveChat:
         
     def load_config(self):
         """Load configuration and initialize LLM."""
-        # Read default use case from config.json
-        with open("config.json", "r") as f:
-            main_config = json.load(f)
-        use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
-        config_path = f"config/{use_case_id}/config.yaml"
+        if self.config_path:
+            config_path = Path(self.config_path)
+            use_case_id = config_path.parent.name
+        else:
+            # Read default use case from config.json
+            with open("config.json", "r") as f:
+                main_config = json.load(f)
+            use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
+            config_path = Path("config") / use_case_id / "config.yaml"
+        self.use_case_id = use_case_id
         
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
@@ -109,9 +117,7 @@ class InteractiveChat:
         """Load recent analysis artifacts."""
         try:
             # Determine use-case output dir
-            with open("config.json", "r") as f:
-                main_config = json.load(f)
-            use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
+            use_case_id = self.use_case_id or "pipeline_defects_detection"
             out_dir = Path("out") / use_case_id / "agent"
             
             # Load analysis summary
@@ -239,9 +245,7 @@ SELECT"""
 
         if mode == "evidence":
             evidence_trail = ""
-            with open("config.json", "r") as f:
-                main_config = json.load(f)
-            use_case_id = main_config.get("default-use-case", "pipeline_defects_detection")
+            _ucid = self.use_case_id or "pipeline_defects_detection"
             trail_path = Path("out") / use_case_id / "agent" / "evidence_trail.txt"
             if trail_path.exists():
                 with open(trail_path, "r") as f:
@@ -296,5 +300,14 @@ SELECT"""
             print(f"\n{response}\n")
 
 if __name__ == "__main__":
-    chat = InteractiveChat()
+    parser = argparse.ArgumentParser(
+        description="Interactive chat interface for PACE pipeline analysis."
+    )
+    parser.add_argument(
+        "--config",
+        help="Path to a use-case config YAML, e.g. config/oil_gas_pipeline/config.yaml",
+    )
+    args = parser.parse_args()
+
+    chat = InteractiveChat(config_path=args.config)
     chat.run()
