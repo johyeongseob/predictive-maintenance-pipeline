@@ -253,6 +253,19 @@ SELECT"""
 
             prompt = f"Context:\n{evidence_trail}\n\nQuestion: {question}\n\n{self.QA_INSTRUCTION}"
             return self.ask_question(prompt, show_thinking=show_thinking)
+        
+        if mode == "corrosion":
+            corrosion_summary = ""
+            _ucid = self.use_case_id or "pipeline_defects_detection"
+            _corrosion_path = Path("out") / _ucid / "agent" / "corrosion_summary.txt"
+            if _corrosion_path.exists():
+                with open(_corrosion_path, "r") as f:
+                    corrosion_summary = f.read()
+            else:
+                return "No corrosion artifacts found. Run the pipeline first."
+
+            prompt = f"Context:\n{corrosion_summary}\n\nQuestion: {question}\n\n{self.QA_INSTRUCTION}"
+            return self.ask_question(prompt, show_thinking=show_thinking)
 
         if mode == "sql":
             sql_query = self.generate_sql_query(question)
