@@ -1,0 +1,128 @@
+display_text: "Oil Gas Pipeline"
+modality: sensor  # 'image', 'sensor', or 'multi'
+
+nc: 3
+names:
+  0: Normal
+  1: Moderate
+  2: Critical
+
+inference:
+  handler: sensor_flat
+  task: classify
+  model_path: models/ov_models/oil_gas_pipeline/sensor_mlp/sensor_mlp_og.xml
+  device: GPU
+  confidence_threshold: 0.25
+  imgsz: 640
+  input_mode: sensor
+  output_type: regression_classification
+
+sensor:
+  model_path: models/ov_models/oil_gas_pipeline/sensor_mlp/sensor_mlp_og.xml
+  data_path: datasets/oil_gas_pipeline/sensor_data/market_pipe_thickness_loss_dataset.csv
+  scaler_path: models/ov_models/oil_gas_pipeline/sensor_mlp/scaler_params.json
+  device: GPU
+  target_value_column: Thickness_Loss_mm
+  target_label_column: Condition
+
+sqlite:
+  db_path: out/oil_gas_pipeline/sql_data/detections.db
+  clear_on_run: true
+  clear_outputs: true
+
+detection_mapping:
+  image_id: __frame_index__
+  source: source
+  label: label
+  confidence: confidence
+  degradation_score: degradation_score
+  continuous_value: continuous_value
+  material_type: material_type
+  max_pressure: max_pressure
+  time_years: time_years
+agents:
+  active: [policy, analysis, evidence, corrosion]
+  confidence_threshold: 0.5
+  report_top_n: 5
+  execution_mode: sequential
+  shared_device: GPU
+
+  policy:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+  analysis:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+  evidence:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+  
+  corrosion:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+glue:
+  mode: model
+  model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+  device: GPU
+  max_steps: 4
+  verbose: true
+  enable_cache: false
+  suppress_thinking: true
+
+sql:
+  model_id: models/ov_models/llms/sqlcoder-7b-2-int4cw
+  device: GPU
+  use_case: oil_gas_pipeline
+
+schema:
+  table_name: detections
+  columns:
+    - name: id
+      type: INTEGER PRIMARY KEY AUTOINCREMENT
+      required: false
+    - name: image_id
+      type: INTEGER
+      required: false
+    - name: source
+      type: TEXT
+      required: true
+    - name: label
+      type: TEXT
+      required: true
+    - name: confidence
+      type: REAL
+      required: true
+    - name: created_at
+      type: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      required: false
+    - name: degradation_score
+      type: REAL
+      required: false
+    - name: continuous_value
+      type: REAL
+      required: false
+    - name: material_type
+      type: TEXT
+      required: false
+    - name: max_pressure
+      type: REAL
+      required: false
+    - name: time_years
+      type: REAL
+      required: false
+  indexes:
+    - label
+    - confidence
+    - source
+    - degradation_score
+    - continuous_value
+    - material_type
+    - max_pressure
+    - time_years

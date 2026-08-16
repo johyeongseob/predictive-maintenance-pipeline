@@ -229,6 +229,7 @@ def agent_output(agent):
     file_map = {
         "analysis": out_dir / "agent" / "analysis_summary.txt",
         "evidence": out_dir / "agent" / "evidence_trail.txt",
+        "corrosion": out_dir / "agent" / "corrosion_summary.txt",
     }
     path = file_map.get(agent)
     if not path or not path.exists():
@@ -395,7 +396,7 @@ def chat_ask():
         mode = None
         routing_strategy = "llm"
 
-    elif requested_mode in {"analysis", "evidence", "sql"}:
+    elif requested_mode in {"analysis", "evidence", "sql", "corrosion"}:
         mode = requested_mode
         
     else:
@@ -430,6 +431,17 @@ def chat_ask():
                 with open(trail_path, "r") as f:
                     evidence_trail = f.read()
             prompt = f"Context:\n{evidence_trail}\n\nQuestion: {question}\n\n{chat.QA_INSTRUCTION}"
+            answer = chat.ask_question(prompt, show_thinking=False)
+        
+        elif mode == "corrosion":
+            corrosion_summary = ""
+            corrosion_path = _get_out_dir() / "agent" / "corrosion_summary.txt"
+            if corrosion_path.exists():
+                with open(corrosion_path, "r") as f:
+                    corrosion_summary = f.read()
+            if not corrosion_summary:
+                return jsonify({"error": "No corrosion artifacts found. Run the pipeline first."}), 400
+            prompt = f"Context:\n{corrosion_summary}\n\nQuestion: {question}\n\n{chat.QA_INSTRUCTION}"
             answer = chat.ask_question(prompt, show_thinking=False)
 
         elif mode == "sql":

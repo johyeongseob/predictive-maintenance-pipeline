@@ -204,6 +204,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
         <select id="inputMode" onchange="toggleInputMode()">
           <option value="video" selected>Video</option>
           <option value="images">Images</option>
+          <option value="sensor">Sensor</option>
         </select>
       </div>
       <div>
@@ -214,7 +215,7 @@ button:disabled{opacity:.45;cursor:not-allowed}
         </select>
       </div>
       <div id="numImagesGroup" style="display:none">
-        <label for="numImages">Number of images</label>
+        <label for="numImages">Number of samples</label>
         <input type="number" id="numImages" value="100" min="1" max="10000">
       </div>
       <div id="inferenceIntervalGroup">

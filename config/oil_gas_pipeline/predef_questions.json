@@ -1,0 +1,22 @@
+{
+  "analysis": [
+    "Summarize the oil_gas_pipeline analysis.",
+    "What are the most common classes detected?"
+  ],
+  "evidence": [
+    "What policy was used for this run?",
+    "How many detections were kept after filtering?"
+  ],
+  "sql": [
+    "Count detections grouped by label.",
+    "Show detections with confidence above 0.5."
+  ],
+  "auto_rule": [
+    "Count detections grouped by label.",
+    "What policy was used for this run?"
+  ],
+  "auto_llm": [
+    "Count detections grouped by label.",
+    "Summarize the analysis."
+  ]
+}

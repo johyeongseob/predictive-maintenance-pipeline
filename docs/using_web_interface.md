@@ -1,14 +1,14 @@
 # Using the Web Interface
 
-This guide walks through the web-based interface for running the predictive
-maintenance pipeline, interacting with agent outputs, and managing tickets — all
-from the browser.
+This guide walks through the browser-based interface for running the predictive
+maintenance pipeline, querying agent outputs, running database questions, and
+creating maintenance tickets.
 
 ## Launching the Web UI
 
 ```bash
 conda activate pace
-python scripts/launch_web_app.py
+python scripts/launch_web_app.py start
 ```
 
 The server starts at `http://localhost:5000`. Open this URL in your browser to
@@ -22,37 +22,28 @@ access the interface.
 
 The home page is the central hub of the web interface. From here you can:
 
-- **Run the Pipeline** — trigger the complete end-to-end inference and agent
-  orchestration pipeline
-- **Ask & Analyze** — interact with the analysis, evidence, and SQL chat agents
-- **View Tickets** — browse and inspect generated defect tickets
+- **Run the Pipeline**: trigger the end-to-end inference and agent orchestration pipeline
+- **Ask & Analyze**: ask natural-language questions over analysis, evidence, and SQL results
+- **View Tickets**: browse and inspect generated maintenance tickets
 
 ---
 
 ## Running the Pipeline
 
+![Running the Pipeline](pace_webui/running_the_pipeline.png)
+
 Click the pipeline execution controls on the home page to start a run. The
-interface supports both video and image input modes, with configurable device
-target (GPU, CPU, NPU) and inference interval settings.
+interface streams progress to the browser in real time.
 
-### Pipeline Output — In Progress
+During a run, you can monitor:
 
-![Pipeline Output](pace_webui/pipeline_output.png)
-
-Once the pipeline starts, output is streamed to the browser in real time via
-server-sent events. You can monitor:
-
-- YOLO inference progress (frame-by-frame detection)
+- inference progress
 - SQLite ingestion status
-- Agent orchestration phases (Policy → Analysis → Evidence)
+- agent orchestration phases
+- generated artifact paths
 
-### Pipeline Output — Complete
-
-![Pipeline Output Complete](pace_webui/pipeline_output_complete.png)
-
-When the pipeline finishes, a completion status is displayed. All output artifacts
-— detection database, analysis reports, evidence audit trails — are now available
-for querying through the chat interface and for ticket creation.
+When the pipeline finishes, the output artifacts are available for querying
+through the chat interface and for ticket creation.
 
 ---
 
@@ -60,56 +51,53 @@ for querying through the chat interface and for ticket creation.
 
 ![Ask and Analyze](pace_webui/ask_and_analyze.png)
 
-The **Ask & Analyze** section provides an interactive chat interface with three
-distinct agent modes. Select the mode that matches your query type, then type your
-question or select from predefined questions.
+The **Ask & Analyze** section provides a unified chat interface. Type a question
+or select a predefined question; the backend automatically routes the request to
+the best available mode:
 
-### Analysis Agent
+- `analysis` for report summaries and aggregate findings
+- `evidence` for policy, traceability, and audit-trail questions
+- `sql` for database queries over detection results
 
-![Analysis Agent — Ask](pace_webui/analysis_agent_ask.png)
+Each response is tagged with the detected mode, for example:
 
-The **Analysis** mode queries the analysis summary produced by the Analysis Agent.
-Ask questions like:
+```text
+[Detected: analysis]
+```
 
-- Detected defect types and their frequency
-- Confidence score distributions across classes
-- Summary statistics and key findings
+If a use case disables an agent through `agents.active`, the router checks the
+active modes before answering. This prevents the chat from trying to read missing
+analysis or evidence artifacts.
 
-![Analysis Agent — Chat](pace_webui/analysis_agent_chat.png)
+### Example Questions
 
-The agent responds with context-aware answers drawn from the structured analysis
-report. Predefined questions are available for common queries such as "What are
-the most common defect types detected?" and "What is the mean confidence of
-obstacle class?" Feel free to edit or change the query.
+Analysis-style questions:
 
-### Evidence Agent
+- "What are the most common defect types detected?"
+- "Summarize the key findings from this run."
+- "Show the confidence distribution by class."
 
-![Evidence Agent — Ask](pace_webui/evidence_agent_ask.png)
+Evidence-style questions:
 
-The **Evidence** mode queries the audit trail produced by the Evidence Agent. Ask questions like:
+- "What policy was used for this run?"
+- "How many detections were kept after filtering?"
+- "Where were the evidence artifacts stored?"
 
-- Policy rules applied during the run
-- Detection filtering metrics and compliance rates
-- Run timestamps and traceability details
+SQL-style questions:
 
-![Evidence Agent — Chat](pace_webui/evidence_agent_chat.png)
+- "Count detections grouped by label."
+- "Show samples with confidence above 0.9."
+- "Show source and label for Smoke detections."
 
-Predefined questions include "What policy was used for this run?" and "Timestamp
-of this run." The evidence agent provides auditable, compliance-oriented answers
-grounded in the run's evidence trail. Feel free to edit or change the query.
+For SQL questions, the interface displays the generated SQL query and formatted
+results. If a result row includes an image or frame identifier, the row shows a
+**Create Ticket** button.
 
-### Database Query Mode
+### Clearing Chat
 
-The **Database Query** mode translates natural language questions into SQL queries against the
-detections database. Ask questions like:
-
-- "Count defects grouped by label"
-- "Show me frames with more than 2 defects"
-- "Show me the rupture frames with confidence above 0.9"
-
-The interface displays both the generated SQL query and the formatted results.
-When query results include `frame_id` columns, the corresponding frames are
-available for ticket creation directly from the results view.
+The **Clear Chat** button clears only the visible chat history in the browser. It
+does not reset the backend state, loaded LLM, pipeline artifacts, database, or
+generated tickets.
 
 ---
 
@@ -119,27 +107,28 @@ available for ticket creation directly from the results view.
 
 ![Create Ticket While Analyzing](pace_webui/create_ticket_while_doing_analysis.png)
 
-While reviewing analysis results or SQL query outputs, you can create tickets for
-specific frames directly from the interface. Click the ticket creation control on
-any frame to generate a self-contained HTML ticket with detection imagery,
-bounding box overlays, and defect metadata.
+While reviewing SQL query outputs, you can create tickets for specific image or
+frame rows directly from the interface. Click **Create Ticket** to generate a
+self-contained HTML ticket with the available detection image and metadata.
 
 ### Viewing Open Tickets
 
 ![See Open Tickets](pace_webui/see_open_tickets.png)
 
-The **Tickets** section lists all generated tickets. Each entry shows the frame ID
-and file size, with a direct link to open the ticket.
+The **Tickets** section lists generated tickets. Each entry includes a link to
+open the ticket artifact.
 
 ### Ticket Details
 
 ![Check Ticket Details](pace_webui/check_ticket_details.png)
 
-Each ticket is a self-contained HTML document that includes:
+Each ticket is a self-contained HTML document that can include:
 
-- The source frame image with bounding box overlays
-- Defect class labels and confidence scores for each detection
-- Frame metadata and detection coordinates
+- the source image or frame
+- predicted labels and confidence scores
+- available metadata and detection coordinates
+- the related evidence trail, when available
 
-Tickets are portable — they require no database access or server connection to
-view, making them suitable for offline review and handoff to maintenance teams.
+Tickets are portable HTML files. They can be opened without database access or a
+running server, which makes them useful for offline review and maintenance
+handoff.

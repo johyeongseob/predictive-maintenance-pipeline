@@ -127,7 +127,18 @@ def run_inference(model_path, model_proc_path, images_dir, output_file,
     print(f"\n{'='*60}")
     print(f"Inference Complete ({modality} / {task})")
     print(f"{'='*60}")
-    print(f"{'Frames' if task == 'detect' else 'Images'} processed: {n_frames}")
+    if task == 'detect':
+        processed_label = 'Frames'
+    elif modality == 'sensor':
+        processed_label = 'Sensor samples'
+    elif modality == 'multi':
+        processed_label = 'Multi-modal samples'
+    elif modality == 'image':
+        processed_label = 'Images'
+    else:
+        processed_label = 'Samples'
+
+    print(f"{processed_label} processed: {n_frames}")
     print(f"Total {'detections' if task == 'detect' else 'classifications'}: {total_detections}")
     if task == 'detect':
         print(f"Average per frame: {total_detections/max(n_frames,1):.1f}")

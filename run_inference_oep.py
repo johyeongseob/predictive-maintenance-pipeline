@@ -62,6 +62,9 @@ if __name__ == '__main__':
 
     if args.config:
         config_path = args.config
+        config_parts = Path(config_path).parts
+        if len(config_parts) >= 3 and config_parts[-1] == 'config.yaml':
+            use_case_id = config_parts[-2]
     else:
         # Read default use case from config.json
         with open('config.json', 'r') as f:

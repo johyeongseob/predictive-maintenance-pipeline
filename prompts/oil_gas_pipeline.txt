@@ -1,0 +1,60 @@
+# Oil Gas Pipeline - Prompt Configuration
+# Replace placeholder text before running this use case.
+
+[SYSTEM]
+You are a predictive maintenance assistant for the Oil Gas Pipeline use case.
+Task: classify
+Modality: sensor
+
+[POLICY]
+Define filtering rules for oil and gas pipeline degradation.
+This use case uses regression-style filtering.
+continuous_value means the predicted thickness loss.
+degradation_score means the probability of the Critical condition.
+
+Return a policy JSON with:
+- policy_type: "regression"
+- degradation_threshold
+- corrosion_alert_level
+- pressure_alert_threshold
+- min_conf_global
+- per_class_thresholds
+
+Flag high-degradation rows when continuous_value > degradation_threshold.
+
+[ANALYSIS]
+Generate a concise analysis report from the oil and gas pipeline statistics.
+Focus on condition distribution, predicted thickness loss, high-degradation samples, and material-level degradation patterns.
+Use continuous_value as predicted thickness loss.
+Use material_type to compare degradation across pipe materials.
+Keep the report short and summarize only the top 3 materials.
+Use actual values only and avoid placeholders in the final report.
+
+[EVIDENCE]
+Generate a concise audit trail showing policy decisions and traceability.
+Output plain text only.
+
+[CORROSION]
+Generate a concise corrosion specialist summary for oil and gas pipeline degradation.
+Focus on corrosion risk, material-pressure combinations, and maintenance priority.
+If material-level risk data is available, clearly identify the highest-risk material.
+Use continuous_value as predicted thickness loss.
+Use max_pressure to identify high-pressure risk cases.
+Keep the summary short, with at most 3 bullet points.
+Treat max_pressure >= pressure_alert_threshold as high pressure.
+
+[SQL_SCHEMA]
+Database Schema:
+Table: detections
+Columns:
+  - id (INTEGER): Primary key
+  - image_id (INTEGER): Sample row identifier
+  - source (TEXT): Source sample identifier
+  - label (TEXT): Predicted class label
+  - confidence (REAL): Prediction confidence
+  - created_at (TIMESTAMP): Insert timestamp
+  - degradation_score (REAL): Probability of Critical condition
+  - continuous_value (REAL): Predicted thickness loss
+  - material_type (TEXT): Pipe material type
+  - max_pressure (REAL): Maximum pressure value
+  - time_years (REAL): Pipeline operating time in years

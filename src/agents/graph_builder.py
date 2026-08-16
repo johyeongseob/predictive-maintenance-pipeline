@@ -4,6 +4,7 @@ from langgraph.graph import StateGraph, END
 
 from .analysis_agent import analysis_agent
 from .evidence_agent import evidence_agent
+from .corrosion_agent import corrosion_agent
 from .meta_agent import collect_results, meta_collect_policy, meta_entry
 from .policy_agent import policy_agent
 from .utility.state import AgentState
@@ -29,9 +30,15 @@ AGENT_REGISTRY = {
         "requires": {"resources", "policy", "for_evidence"},
         "provides": {"evidence"},
     },
+    "corrosion": {
+        "module": "src.agents.corrosion_agent",
+        "node_fn": corrosion_agent,
+        "requires": {"resources", "policy", "for_corrosion"},
+        "provides": {"corrosion"},
+    },
 }
 
-META_PROVIDES = {"resources", "for_analysis", "for_evidence"}
+META_PROVIDES = {"resources", "for_analysis", "for_evidence", "for_corrosion"}
 
 
 class ConfigurationError(ValueError):

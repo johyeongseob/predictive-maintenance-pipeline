@@ -27,15 +27,21 @@ def policy_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     # Get class names
     class_names = list(config.get("names", {}).values()) if "names" in config else []
     
-    # Generate policy with LLM
-    if llm and policy_prompt:
+    # Load fallback policy first so regression policies can preserve fixed thresholds.
+    fallback_policy = _fallback_policy(config)
+
+    # Regression policies use dataset-specific numeric thresholds.
+    # Keep them from fallback instead of letting the LLM rewrite them.
+    if fallback_policy.get("policy_type") == "regression":
+        policy = fallback_policy
+    elif llm and policy_prompt:
         try:
             policy = _generate_policy_with_llm(llm, policy_prompt, class_names, config)
         except Exception as e:
-            print(f"[Policy Agent] ⚠️  LLM failed ({e}), using config fallback")
-            policy = _fallback_policy(config)
+            print("[Policy Agent] LLM failed, using config fallback")
+            policy = fallback_policy
     else:
-        policy = _fallback_policy(config)
+        policy = fallback_policy
     
     # Save policy
     import os
@@ -90,7 +96,11 @@ Return JSON with keys: min_conf_global, per_class_thresholds, bbox_min_size, min
 
 def _fallback_policy(config: Dict) -> Dict:
     """Load fallback policy from config/policy_fallback.json."""
-    fallback_path = "config/policy_fallback.json"
+    use_case = config.get("sql", {}).get("use_case") or config.get("use_case")
+    if use_case:
+        fallback_path = f"config/{use_case}/policy_fallback.json"
+    else:
+        fallback_path = "config/policy_fallback.json"
     try:
         with open(fallback_path, "r") as f:
             policy = json.load(f)

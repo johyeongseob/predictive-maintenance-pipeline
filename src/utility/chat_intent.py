@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Iterable, Pattern
 
 
-VALID_CHAT_MODES = {"analysis", "evidence", "sql"}
+VALID_CHAT_MODES = {"analysis", "evidence", "sql", "corrosion"}
 DEFAULT_ACTIVE_AGENTS = ["policy", "analysis", "evidence"]
 
 
@@ -29,6 +29,16 @@ def _compile(pattern: str) -> Pattern[str]:
 # Strategy A: keyword/regex rules.
 # Priority matters: first match wins.
 _KEYWORD_RULES: tuple[IntentRule, ...] = (
+    IntentRule(
+        "corrosion",
+        _compile(
+            r"\b("
+            r"corrosion|corrosion\s+risk|material\s+risk|"
+            r"maintenance\s+priority|high\s+pressure|"
+            r"thickness\s+loss|degradation\s+risk"
+            r")\b"
+        ),
+    ),
     IntentRule(
         "sql",
         _compile(
@@ -82,11 +92,14 @@ Review the policy used for this run. -> evidence
 Inspect the per-class policy thresholds. -> evidence
 Verify whether database storage was enabled. -> evidence
 Trace where the evidence artifacts were stored. -> evidence
+Which material has the highest corrosion risk? -> corrosion
+Which pipeline samples should be prioritized for corrosion maintenance? -> corrosion
+What are the high-pressure corrosion risks? -> corrosion
 Calculate the average confidence for each gas class. -> sql
 Select detections where the label is Mixture. -> sql
 Summarize the analysis in 3 bullet points. -> analysis
 
-Return only one word: analysis, evidence, or sql.
+Return only one word: analysis, evidence, sql, or corrosion.
 
 Question: {question}
 """
@@ -105,7 +118,7 @@ def parse_intent_response(response: str) -> str:
     if first_token in VALID_CHAT_MODES:
         return first_token
 
-    for mode in ("sql", "evidence", "analysis"):
+    for mode in ("corrosion", "sql", "evidence", "analysis"):
         if re.search(rf"\b{mode}\b", text):
             return mode
 
@@ -136,6 +149,8 @@ def get_active_chat_modes(config: dict | None) -> set[str]:
         modes.add("analysis")
     if "evidence" in active_agents:
         modes.add("evidence")
+    if "corrosion" in active_agents:
+        modes.add("corrosion")
     return modes
 
 

@@ -9,6 +9,13 @@ from typing import List, Dict, Any
 
 
 def filter_detections(detections: List[Dict[str, Any]], policy: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if policy.get("policy_type") == "regression":
+        return _filter_regression_detections(detections, policy)
+
+    return _filter_confidence_detections(detections, policy)
+
+
+def _filter_confidence_detections(detections, policy):
     """
     Filter detections based on policy rules.
     
@@ -67,4 +74,19 @@ def filter_detections(detections: List[Dict[str, Any]], policy: Dict[str, Any]) 
         
         filtered.append(det)
     
+    return filtered
+
+def _filter_regression_detections(detections, policy):
+    threshold = policy.get("degradation_threshold")
+    if threshold is None:
+        return detections
+
+    filtered = []
+    for det in detections:
+        continuous_value = det.get("continuous_value")
+        if continuous_value is None:
+            continue
+        if float(continuous_value) > float(threshold):
+            filtered.append(det)
+
     return filtered

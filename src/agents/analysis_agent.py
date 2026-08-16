@@ -94,6 +94,11 @@ def _generate_stats(detections, policy=None):
         "labels_found": list(label_counts.keys()),
         "counts_per_label": dict(label_counts),
         "confidence_stats": label_confidences,
+        "regression_statistics": (
+            _generate_regression_stats(detections, policy)
+            if policy.get("policy_type") == "regression"
+            else {}
+        ),
         # Image-vs-sensor distribution, modality dominance, and anomaly counts.
         "sensor_statistics": _generate_sensor_stats(detections, policy)
     }
@@ -202,10 +207,64 @@ def _generate_sensor_stats(detections, policy):
     }
 
 
+def _generate_regression_stats(detections, policy):
+    """Generate O&G regression/degradation statistics."""
+    threshold = _safe_float(policy.get("degradation_threshold"))
+    continuous_values = [
+        _safe_float(det.get("continuous_value"))
+        for det in detections
+    ]
+    continuous_values = [v for v in continuous_values if v is not None]
+
+    by_material = {}
+    for det in detections:
+        material = det.get("material_type") or "unknown"
+        value = _safe_float(det.get("continuous_value"))
+        if value is None:
+            continue
+        by_material.setdefault(material, []).append(value)
+
+    material_stats = {
+        material: _numeric_stats(values)
+        for material, values in by_material.items()
+    }
+
+    high_degradation_count = 0
+    if threshold is not None:
+        high_degradation_count = sum(
+            1 for value in continuous_values if value > threshold
+        )
+
+    return {
+        "continuous_value_distribution": _numeric_stats(continuous_values),
+        "degradation_threshold": threshold,
+        "high_degradation_count": high_degradation_count,
+        "mean_continuous_value_by_material": material_stats,
+    }
+
+
 def _generate_summary_with_llm(llm, prompt: str, stats: Dict) -> str:
     """Generate summary using LLM."""
-    enhanced_prompt = f"{prompt}\n\nStatistics:\n{json.dumps(stats, indent=2)}\n\nGenerate analysis report:"
-    result = llm.invoke(enhanced_prompt, temperature=0.5, max_new_tokens=400)
+    concise_instruction = """
+Keep the report concise.
+Use at most 4 short sections:
+1. Condition Distribution
+2. Predicted Thickness Loss
+3. High-Degradation Samples
+4. Material-Level Degradation
+
+For material-level degradation, summarize only the top 3 materials.
+Use one short sentence per material.
+Do not add long explanations.
+Do not exceed 250 words.
+"""
+    enhanced_prompt = (
+        f"{prompt}\n\n"
+        f"{concise_instruction}\n\n"
+        f"Statistics:\n{json.dumps(stats, indent=2)}\n\n"
+        "Generate a concise analysis report:"
+    )
+    result = llm.invoke(enhanced_prompt, temperature=0.3, max_new_tokens=300)
     return result.strip()
 
 
@@ -232,6 +291,33 @@ def _generate_fallback_summary(stats: Dict) -> str:
         lines.append(f"    Mean: {stat['mean']:.3f}")
         lines.append(f"    Range: {stat['min']:.3f} - {stat['max']:.3f}")
 
+
+    regression_stats = stats.get("regression_statistics", {})
+    if regression_stats:
+        lines.append("\nDegradation Statistics:")
+        dist = regression_stats.get("continuous_value_distribution", {})
+        if dist.get("count"):
+            lines.append(
+                f"  Predicted Thickness Loss Mean: {dist['mean']:.3f} "
+                f"(range {dist['min']:.3f} - {dist['max']:.3f})"
+            )
+        threshold = regression_stats.get("degradation_threshold")
+        if threshold is not None:
+            lines.append(f"  Degradation Threshold: {threshold:.3f}")
+            lines.append(
+                f"  High Degradation Samples: "
+                f"{regression_stats.get('high_degradation_count', 0)}"
+            )
+
+        material_stats = regression_stats.get("mean_continuous_value_by_material", {})
+        if material_stats:
+            lines.append("  Mean Thickness Loss by Material:")
+            for material, material_dist in sorted(material_stats.items()):
+                if material_dist.get("count"):
+                    lines.append(
+                        f"    {material}: {material_dist['mean']:.3f} "
+                        f"({material_dist['count']} samples)"
+                    )
     # Add sensor summary to the fallback report.
     sensor_stats = stats.get("sensor_statistics", {})
     lines.append("\nSensor Statistics:")
