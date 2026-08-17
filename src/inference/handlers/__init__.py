@@ -2,6 +2,12 @@
 
 from .dlstreamer_detect import DLStreamerDetectHandler
 from .openvino_classify import OpenVINOClassifyHandler
+from .openvino_detect import OpenVINODetectHandler
 from .sensor_flat import SensorFlatHandler
 
-__all__ = ["DLStreamerDetectHandler", "OpenVINOClassifyHandler", "SensorFlatHandler"]
+__all__ = [
+    "DLStreamerDetectHandler",
+    "OpenVINOClassifyHandler",
+    "OpenVINODetectHandler",
+    "SensorFlatHandler"
+]

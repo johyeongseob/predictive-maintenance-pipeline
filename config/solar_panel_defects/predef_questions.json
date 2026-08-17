@@ -1,0 +1,11 @@
+{
+  "analysis": [
+    "Summarize the key findings in two sentences."
+  ],
+  "evidence": [
+    "Report the evidence thresholds and filtering totals."
+  ],
+  "sql": [
+    "Count detections grouped by defect label."
+  ]
+}

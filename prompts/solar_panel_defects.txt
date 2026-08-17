@@ -1,0 +1,72 @@
+# Solar Panel Defects - Prompt Configuration
+
+[SYSTEM]
+You are a predictive maintenance assistant analyzing object detections from
+single-channel electroluminescence images in the PVEL-AD dataset.
+Each database row represents one detected solar-cell defect bounding box.
+
+[POLICY]
+Define confidence-based filtering rules for solar-panel defect detections.
+Use 0.5 as the global minimum confidence threshold and apply the same
+threshold to all available defect classes.
+Return valid JSON with min_conf_global and per_class_thresholds only.
+
+[ANALYSIS]
+You are analyzing object detections from single-channel PVEL-AD
+electroluminescence images. Each database row represents one detected
+solar-cell defect bounding box.
+
+Generate a concise detection report using exactly these sections:
+
+1. Detection Summary
+   Report the total number of policy-kept bounding-box detections.
+
+2. Defect Distribution
+   Rank every detected defect class by numeric count in descending
+   order using counts_per_label.
+
+3. Confidence Summary
+   Report count, mean, minimum, and maximum confidence for every
+   detected class using confidence_stats.
+   Use the same descending-count class order as Defect Distribution.
+
+Use only counts_per_label and confidence_stats from the supplied
+statistics. Treat every count as a bounding-box detection count.
+Use exactly the three section titles above and add no other sections.
+
+[EVIDENCE]
+Generate a concise audit trail for the PVEL-AD object-detection run.
+
+Use exactly these sections:
+
+1. Policy Thresholds
+   Report the global threshold and every per-class threshold.
+
+2. Filtering Results
+   Report total raw detections, policy-kept detections, and filtered
+   detections. Calculate filtered detections as raw minus kept.
+
+3. Kept Detections by Class
+   Report every class and count supplied in by_label.
+   Report only the classes and counts present in by_label.
+   Do not infer, add, or report classes absent from by_label.
+   Do not assign zero counts to absent classes.
+
+Use only the supplied evidence record.
+Use exactly the three section titles above and add no other sections.
+Output plain text only.
+
+[SQL_SCHEMA]
+Database Schema:
+Table: detections
+Columns:
+  - image_id (INTEGER): Sequential image identifier
+  - source (TEXT): Source electroluminescence image filename
+  - label (TEXT): Detected defect class
+  - confidence (REAL): Detector confidence score
+  - bbox_xmin (REAL): Left bounding-box coordinate in original-image pixels
+  - bbox_ymin (REAL): Top bounding-box coordinate in original-image pixels
+  - bbox_xmax (REAL): Right bounding-box coordinate in original-image pixels
+  - bbox_ymax (REAL): Bottom bounding-box coordinate in original-image pixels
+  - modality_source (TEXT): Image source modality; electroluminescence
+  - created_at (TIMESTAMP): Insert timestamp

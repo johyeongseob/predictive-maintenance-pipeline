@@ -30,6 +30,7 @@ Thumbs.db
 datasets/*/images/
 datasets/*/labels/
 datasets/*/sensor_data/
+datasets/solar_panel_defects/
 3b_model_dataset
 
 # Temporary sequential image links (created during DLStreamer inference)
@@ -41,8 +42,10 @@ models/pt_models/**/*.onnx
 models/ov_models/**/*.bin
 models/ov_models/**/*.xml
 models/ov_models/**/*.mapping
+models/ov_models/**/*.yaml
 models/ov_models/llms/
 models/ov_models/oil_gas_pipeline
+
 
 data/
 # Outputs
@@ -73,6 +76,8 @@ datasets/pipeline_defects_detection/bbox.py
 src/utility/check.py
 out/check_sensor_raw_json_db.py
 benchmarks/chat_intent_llm_results.json
+scripts/evaluate_solar_results.py
+
 
 # Local generated dataset outputs
 datasets/pipeline_defects_detection/005588_Deformation.jpg

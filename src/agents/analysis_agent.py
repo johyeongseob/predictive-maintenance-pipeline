@@ -40,12 +40,20 @@ def analysis_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     
     # Generate statistics
     stats = _generate_stats(filtered, policy)
+
+    config = resources.get("config", {})
+    use_case = config.get("sql", {}).get("use_case", "")
     
     # Generate text summary with LLM if available
     summary_text = ""
     if llm and analysis_prompt:
         try:
-            summary_text = _generate_summary_with_llm(llm, analysis_prompt, stats)
+            summary_text = _generate_summary_with_llm(
+                llm,
+                analysis_prompt,
+                stats,
+                use_case=use_case,
+            )
         except Exception as e:
             print(f"[Analysis Agent] ⚠️  LLM failed ({e}), using fallback")
             summary_text = _generate_fallback_summary(stats)
@@ -243,9 +251,16 @@ def _generate_regression_stats(detections, policy):
     }
 
 
-def _generate_summary_with_llm(llm, prompt: str, stats: Dict) -> str:
+def _generate_summary_with_llm(
+    llm,
+    prompt: str,
+    stats: Dict,
+    use_case: str = "",
+) -> str:
     """Generate summary using LLM."""
-    concise_instruction = """
+    if use_case == "oil_gas_pipeline":
+        concise_instruction = """
+
 Keep the report concise.
 Use at most 4 short sections:
 1. Condition Distribution
@@ -258,6 +273,17 @@ Use one short sentence per material.
 Do not add long explanations.
 Do not exceed 250 words.
 """
+
+    else:
+        concise_instruction = """
+Keep the report concise.
+Follow only the report structure and restrictions defined in the
+use-case analysis prompt.
+Use only the supplied statistics.
+Do not add sections or findings from another use case.
+Do not exceed 250 words.
+"""
+
     enhanced_prompt = (
         f"{prompt}\n\n"
         f"{concise_instruction}\n\n"

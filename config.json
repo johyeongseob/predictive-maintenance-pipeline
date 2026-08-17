@@ -1,5 +1,5 @@
 {
-  "default-use-case": "oil_gas_pipeline",
+  "default-use-case": "solar_panel_defects",
   "use-cases": [
     {
       "id": "pipeline_defects_detection",
@@ -12,6 +12,10 @@
     {
       "id": "oil_gas_pipeline",
       "display_text": "Oil Gas Pipeline"
+    },
+    {
+      "id": "solar_panel_defects",
+      "display_text": "Solar Panel Defects"
     }
   ]
 }
