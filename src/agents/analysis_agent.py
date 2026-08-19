@@ -41,9 +41,6 @@ def analysis_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     # Generate statistics
     stats = _generate_stats(filtered, policy)
 
-    config = resources.get("config", {})
-    use_case = config.get("sql", {}).get("use_case", "")
-    
     # Generate text summary with LLM if available
     summary_text = ""
     if llm and analysis_prompt:
@@ -52,7 +49,6 @@ def analysis_agent(state: Dict[str, Any]) -> Dict[str, Any]:
                 llm,
                 analysis_prompt,
                 stats,
-                use_case=use_case,
             )
         except Exception as e:
             print(f"[Analysis Agent] ⚠️  LLM failed ({e}), using fallback")
@@ -255,42 +251,15 @@ def _generate_summary_with_llm(
     llm,
     prompt: str,
     stats: Dict,
-    use_case: str = "",
 ) -> str:
-    """Generate summary using LLM."""
-    if use_case == "oil_gas_pipeline":
-        concise_instruction = """
 
-Keep the report concise.
-Use at most 4 short sections:
-1. Condition Distribution
-2. Predicted Thickness Loss
-3. High-Degradation Samples
-4. Material-Level Degradation
-
-For material-level degradation, summarize only the top 3 materials.
-Use one short sentence per material.
-Do not add long explanations.
-Do not exceed 250 words.
-"""
-
-    else:
-        concise_instruction = """
-Keep the report concise.
-Follow only the report structure and restrictions defined in the
-use-case analysis prompt.
-Use only the supplied statistics.
-Do not add sections or findings from another use case.
-Do not exceed 250 words.
-"""
-
+    """Generate summary using the configured use-case prompt."""
     enhanced_prompt = (
         f"{prompt}\n\n"
-        f"{concise_instruction}\n\n"
         f"Statistics:\n{json.dumps(stats, indent=2)}\n\n"
         "Generate a concise analysis report:"
     )
-    result = llm.invoke(enhanced_prompt, temperature=0.3, max_new_tokens=300)
+    result = llm.invoke(enhanced_prompt, temperature=0.3, max_new_tokens=450)
     return result.strip()
 
 

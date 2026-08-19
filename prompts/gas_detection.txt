@@ -73,6 +73,7 @@ IMPORTANT:
 - Keep it concise and professional
 - Do not add a Note section.
 - Return ONLY the report text, no additional notes or comments
+- Do not exceed 250 words.
 
 [EVIDENCE]
 Generate a concise audit trail report as PLAIN TEXT (not JSON). Use the evidence data provided in the context.

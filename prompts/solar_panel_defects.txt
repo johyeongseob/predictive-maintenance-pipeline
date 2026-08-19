@@ -33,6 +33,7 @@ Generate a concise detection report using exactly these sections:
 Use only counts_per_label and confidence_stats from the supplied
 statistics. Treat every count as a bounding-box detection count.
 Use exactly the three section titles above and add no other sections.
+Do not exceed 250 words.
 
 [EVIDENCE]
 Generate a concise audit trail for the PVEL-AD object-detection run.

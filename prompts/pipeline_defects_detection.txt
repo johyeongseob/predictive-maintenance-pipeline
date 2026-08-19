@@ -55,6 +55,7 @@ IMPORTANT:
 - Format with proper text alignment and borders using - and = characters
 - Keep it concise and professional
 - Return ONLY the report text, no additional notes or comments
+- Do not exceed 250 words.
 
 [EVIDENCE]
 Generate a concise audit trail report as PLAIN TEXT (not JSON). Use the evidence data provided in the context.
