@@ -433,7 +433,10 @@ function startPipeline(){
 
 function appendTerminal(el,line){
   const span=document.createElement('span');
-  if(/✅|SUCCESS/.test(line)) span.className='line-success';
+  if(
+    /✅|SUCCESS/.test(line) ||
+    /^\[Corrosion Agent\]\s+Complete:/.test(line)
+  ) span.className='line-success';
   else if(/❌|FAILED|ERROR/.test(line)) span.className='line-error';
   else if(/^STEP:|^={20,}/.test(line.trim())) span.className='line-step';
   else if(/⚠️|📊|📄|📌|🚀|Command:/.test(line)) span.className='line-info';
