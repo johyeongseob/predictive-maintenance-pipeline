@@ -225,15 +225,7 @@ def create_usecase(name: str, task: str, modality: str, root: Path) -> list[Path
             "sql": [
                 "Count detections grouped by label.",
                 "Show detections with confidence above 0.5.",
-            ],
-            "auto_rule": [
-                "Count detections grouped by label.",
-                "What policy was used for this run?",
-            ],
-            "auto_llm": [
-                "Count detections grouped by label.",
-                "Summarize the analysis.",
-            ],
+            ]
         },
     )
     created.append(config_dir / "predef_questions.json")

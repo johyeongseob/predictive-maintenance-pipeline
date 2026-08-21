@@ -259,7 +259,7 @@ def _generate_summary_with_llm(
         f"Statistics:\n{json.dumps(stats, indent=2)}\n\n"
         "Generate a concise analysis report:"
     )
-    result = llm.invoke(enhanced_prompt, temperature=0.3, max_new_tokens=450)
+    result = llm.invoke(enhanced_prompt, temperature=0.3, max_new_tokens=500)
     return result.strip()
 
 

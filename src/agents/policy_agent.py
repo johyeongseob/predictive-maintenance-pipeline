@@ -37,6 +37,7 @@ def policy_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     elif llm and policy_prompt:
         try:
             policy = _generate_policy_with_llm(llm, policy_prompt, class_names, config)
+            policy = _normalize_class_thresholds(policy, class_names, fallback_policy)
         except Exception as e:
             print("[Policy Agent] LLM failed, using config fallback")
             policy = fallback_policy
@@ -92,6 +93,29 @@ Return JSON with keys: min_conf_global, per_class_thresholds, bbox_min_size, min
     if json_match:
         return json.loads(json_match.group())
     return json.loads(result)
+
+
+def _normalize_class_thresholds(
+    policy: Dict,
+    class_names: list,
+    fallback_policy: Dict,
+) -> Dict:
+    """Preserve the exact configured class names in policy thresholds."""
+    generated = policy.get("per_class_thresholds", {})
+    fallback = fallback_policy.get("per_class_thresholds", {})
+    global_threshold = policy.get(
+        "min_conf_global",
+        fallback_policy.get("min_conf_global", 0.0),
+    )
+
+    policy["per_class_thresholds"] = {
+        class_name: generated.get(
+            class_name,
+            fallback.get(class_name, global_threshold),
+        )
+        for class_name in class_names
+    }
+    return policy
 
 
 def _fallback_policy(config: Dict) -> Dict:
