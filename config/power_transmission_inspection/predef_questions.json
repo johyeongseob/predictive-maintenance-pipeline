@@ -1,0 +1,11 @@
+{
+  "analysis": [
+    "Summarize the power transmission inspection analysis."
+  ],
+  "evidence": [
+    "Report the policy thresholds and filtering results."
+  ],
+  "sql": [
+    "Count classifications grouped by label."
+  ]
+}

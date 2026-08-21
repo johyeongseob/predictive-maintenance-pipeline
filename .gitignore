@@ -31,7 +31,7 @@ datasets/*/images/
 datasets/*/labels/
 datasets/*/sensor_data/
 datasets/solar_panel_defects/
-3b_model_dataset
+datasets/power_transmission_inspection/
 
 # Temporary sequential image links (created during DLStreamer inference)
 .tmp_seq_images/
