@@ -6,7 +6,10 @@ from scripts.clean_slate import clean_database
 from src.inference import dispatch
 from src.inference.config_builder import build_handler_config
 from src.inference.output_writer import write_inference_outputs
-from src.inference.visualization import generate_classification_viz
+from src.inference.visualization import (
+    generate_classification_viz,
+    generate_detection_viz,
+)
 
 
 # Import SQLite client
@@ -119,6 +122,7 @@ def run_inference(model_path, model_proc_path, images_dir, output_file,
         detection_mapping=detection_mapping,
         image_files=image_files,
         visualization_fn=generate_classification_viz,
+        detection_visualization_fn=generate_detection_viz,
     )
 
     output_path = output_result["output_path"]

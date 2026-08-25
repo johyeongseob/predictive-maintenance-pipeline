@@ -86,3 +86,89 @@ def generate_classification_viz(images_dir, fused_results, image_probs, sensor_p
         cv2.imwrite(str(viz_dir / out_name), img)
 
     print(f"✓ Classification visualizations saved: {viz_dir}/ ({len(fused_results)} images)")
+
+
+def generate_detection_viz(images_dir, frames, out_dir):
+    """Draw detection boxes and save images using their source filenames."""
+    import cv2
+
+    viz_dir = Path(out_dir) / "viz"
+    viz_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_count = 0
+
+    for frame in frames:
+        source = frame.get("source")
+        if not source:
+            continue
+
+        image_path = Path(images_dir) / source
+        if not image_path.exists():
+            print(f"⚠️  Visualization source not found: {image_path}")
+            continue
+
+        # Read as color so colored boxes can be drawn on grayscale images.
+        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
+        if image is None:
+            print(f"⚠️  Failed to read visualization source: {image_path}")
+            continue
+
+        for obj in frame.get("objects", []):
+            detection = obj.get("detection", {})
+            box = detection.get("bounding_box", {})
+
+            required_keys = ("x_min", "y_min", "x_max", "y_max")
+            if not all(key in box for key in required_keys):
+                continue
+
+            x_min = int(round(box["x_min"]))
+            y_min = int(round(box["y_min"]))
+            x_max = int(round(box["x_max"]))
+            y_max = int(round(box["y_max"]))
+
+            label = detection.get("label", "unknown")
+            confidence = float(detection.get("confidence", 0.0))
+            text = f"{label} {confidence:.2f}"
+            color = (0, 255, 0)
+
+            cv2.rectangle(
+                image,
+                (x_min, y_min),
+                (x_max, y_max),
+                color,
+                2,
+            )
+
+            text_y = max(y_min - 8, 20)
+
+            # Black outline for readability.
+            cv2.putText(
+                image,
+                text,
+                (x_min, text_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 0, 0),
+                4,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                image,
+                text,
+                (x_min, text_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                color,
+                2,
+                cv2.LINE_AA,
+            )
+
+        # Chat and ticket lookup use the original source filename.
+        output_path = viz_dir / Path(source).name
+        if cv2.imwrite(str(output_path), image):
+            saved_count += 1
+
+    print(
+        f"✓ Detection visualizations saved: "
+        f"{viz_dir}/ ({saved_count} images)"
+    )
