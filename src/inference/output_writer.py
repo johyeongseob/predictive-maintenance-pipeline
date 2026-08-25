@@ -95,6 +95,7 @@ def write_inference_outputs(
     detection_mapping,
     image_files,
     visualization_fn=None,
+    detection_visualization_fn=None,
 ):
     """Write handler results to JSONL, SQLite, and optional visualization."""
     task = handler_config["task"]
@@ -219,6 +220,20 @@ def write_inference_outputs(
             image_probs=image_probs,
             sensor_probs=sensor_probs,
             class_names=class_names or {},
+            out_dir=str(out_base),
+        )
+
+    if (
+        detection_visualization_fn
+        and task == "detect"
+        and modality == "image"
+        and images_dir
+        and results
+    ):
+        out_base = Path("out") / out_subdir if out_subdir else Path("out")
+        detection_visualization_fn(
+            images_dir=images_dir,
+            frames=results,
             out_dir=str(out_base),
         )
 

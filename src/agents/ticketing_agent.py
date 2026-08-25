@@ -90,8 +90,9 @@ def generate_ticket_html(
     frame_id,
     detections: List[Dict[str, Any]],
     evidence_trail: str,
-    image_path: Path,
+    image_path: Optional[Path],
     image_base64: Optional[str],
+    include_image: bool = True,
 ) -> str:
     """Generate a self-contained HTML ticket for a defect/classification."""
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -126,10 +127,29 @@ def generate_ticket_html(
     safe_id = str(frame_id).replace('.', '_').replace('/', '_') if not isinstance(frame_id, int) else f"F{frame_id:06d}"
 
     # Image tag (embedded base64 or path reference)
-    if image_base64:
-        img_tag = f'<img src="data:image/jpeg;base64,{image_base64}" alt="{ticket_title}" style="max-width:100%;border-radius:8px;border:1px solid #333">'
-    else:
-        img_tag = f'<p style="color:#f44">Image not found: {image_path}</p>'
+    image_section = ""
+    if include_image:
+        if image_base64:
+            img_tag = (
+                f'<img src="data:image/jpeg;base64,{image_base64}" '
+                f'alt="{ticket_title}" '
+                f'style="max-width:100%;border-radius:8px;'
+                f'border:1px solid #333">'
+            )
+        else:
+            img_tag = (
+                f'<p style="color:#f44">'
+                f'Image not found: {image_path}</p>'
+            )
+
+        image_section = f"""
+  <div class="section">
+    <h2>📸 Image</h2>
+    <div class="img-container">{img_tag}</div>
+    <div class="path-info">Image path: {image_path}</div>
+  </div>
+"""
+
 
     # Escape evidence trail for HTML
     evidence_html = (
@@ -173,12 +193,7 @@ def generate_ticket_html(
     <div class="meta">Generated: {timestamp} &nbsp;|&nbsp; Ticket ID: TICKET-{safe_id}</div>
   </div>
 
-  <div class="section">
-    <h2>📸 Image</h2>
-    <div class="img-container">{img_tag}</div>
-    <div class="path-info">Image path: {image_path}</div>
-  </div>
-
+  {image_section}
   <div class="section">
     <h2>🔍 Results ({len(detections)} {'detection' if is_detection else 'classification'}{'s' if len(detections) != 1 else ''})</h2>
     <table>
@@ -198,13 +213,18 @@ def generate_ticket_html(
     return html
 
 
-def create_ticket(db_client, frame_id) -> Dict[str, Any]:
+def create_ticket(
+    db_client,
+    frame_id,
+    include_image: bool = True,
+) -> Dict[str, Any]:
     """
     Create a ticket for a specific frame/image.
 
     Args:
         db_client: SQLiteClient instance for querying detections
         frame_id: Frame ID (int) or source image identifier (str/int)
+        include_image: Whether this use case has image-based input
 
     Returns:
         Dict with 'ok', 'path', and 'message' keys
@@ -255,12 +275,16 @@ def create_ticket(db_client, frame_id) -> Dict[str, Any]:
         except ValueError:
             pass
 
-    if not image_path:
+    if include_image and not image_path:
         # No matching file found; use a non-existent placeholder so
         # image_base64 will be None (no file to encode).
         image_path = viz_dir / "frame_not_found.jpg"
 
-    image_base64 = _encode_image_base64(image_path) if image_path.exists() else None
+    image_base64 = (
+        _encode_image_base64(image_path)
+        if include_image and image_path and image_path.exists()
+        else None
+    )
 
     # Determine display label
     display_label = str(frame_id)
@@ -274,6 +298,7 @@ def create_ticket(db_client, frame_id) -> Dict[str, Any]:
         evidence_trail=evidence_trail,
         image_path=image_path,
         image_base64=image_base64,
+        include_image=include_image,
     )
 
     # Write ticket to disk
