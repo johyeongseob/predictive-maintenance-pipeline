@@ -117,6 +117,8 @@ def write_inference_outputs(
     total_detections = 0
     backend_detections = []
     n_frames = 0
+    classification_results = []
+    has_images = bool(images_dir) and bool(image_files)
 
     if task == 'classify' and modality == 'image':
         # Image-only classification (no fusion) - convert probability records to results
@@ -147,10 +149,12 @@ def write_inference_outputs(
                 backend_detections.append(row)
 
         _write_jsonl_records(output_path, image_results)
+        classification_results = image_results
 
     elif task == 'classify':
         # Classification output: one result per image
         fused_results = results
+        classification_results = fused_results
         n_frames = len(fused_results)
         _write_jsonl_records(output_path, fused_results)
         for frame_idx, result in enumerate(fused_results):
@@ -212,11 +216,16 @@ def write_inference_outputs(
         finally:
             sqlite_client.close()
 
-    if visualization_fn and task == 'classify' and modality == 'multi' and images_dir and results:
+    if (
+        visualization_fn
+        and task == "classify"
+        and has_images
+        and classification_results
+    ):
         out_base = Path('out') / out_subdir if out_subdir else Path('out')
         visualization_fn(
             images_dir=images_dir,
-            fused_results=results,
+            fused_results=classification_results,
             image_probs=image_probs,
             sensor_probs=sensor_probs,
             class_names=class_names or {},
@@ -226,8 +235,7 @@ def write_inference_outputs(
     if (
         detection_visualization_fn
         and task == "detect"
-        and modality == "image"
-        and images_dir
+        and has_images
         and results
     ):
         out_base = Path("out") / out_subdir if out_subdir else Path("out")
