@@ -278,8 +278,8 @@ button:disabled{opacity:.45;cursor:not-allowed}
      ═══════════════════════════════════════════════════════════════════ -->
 <section class="page" id="page-tickets">
   <div class="card">
-    <h2 style="margin-bottom:16px"><span class="icon">🎫</span> Defect Tickets</h2>
-    <p style="color:var(--text2);margin-bottom:16px">Tickets are generated from Database Query results. Use the Chat → Database Query mode to find defects, then raise tickets for specific frames.</p>
+    <h2 style="margin-bottom:16px"><span class="icon">🎫</span> Result Tickets</h2>
+    <p style="color:var(--text2);margin-bottom:16px">Tickets are generated from Database Query results. Use the Chat → Database Query mode to find results, then create tickets for specific samples.</p>
     <button onclick="refreshTicketList()" style="margin-bottom:16px;padding:8px 16px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer">🔄 Refresh</button>
     <div id="ticketList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px"></div>
     <div id="ticketEmpty" style="color:var(--text2);text-align:center;padding:40px">No tickets yet. Run a Database Query and raise tickets from the results.</div>
@@ -433,7 +433,10 @@ function startPipeline(){
 
 function appendTerminal(el,line){
   const span=document.createElement('span');
-  if(/✅|SUCCESS/.test(line)) span.className='line-success';
+  if(
+    /✅|SUCCESS/.test(line) ||
+    /^\[Corrosion Agent\]\s+Complete:/.test(line)
+  ) span.className='line-success';
   else if(/❌|FAILED|ERROR/.test(line)) span.className='line-error';
   else if(/^STEP:|^={20,}/.test(line.trim())) span.className='line-step';
   else if(/⚠️|📊|📄|📌|🚀|Command:/.test(line)) span.className='line-info';
@@ -553,14 +556,13 @@ function sendChat(){
       }
       // Show annotated frames with ticket buttons for image_refs in results
       var refs = d.image_refs || [];
-      if(!refs.length && d.frame_ids && d.frame_ids.length){
-        refs = d.frame_ids.map(fid=>({id:fid, filename:'frame_'+String(fid).padStart(6,'0')+'.jpg', label:'Frame '+fid}));
-      }
       if(refs.length){
         html+='<div class="sql-frames">';
         refs.forEach(ref=>{
           html+='<div class="frame-card">';
-          html+='<img src="/viz/'+ref.filename+'" alt="'+ref.label+'" title="'+ref.label+'" onclick="document.getElementById(\'lightboxImg\').src=this.src;document.getElementById(\'lightbox\').classList.add(\'show\')">';
+          if(ref.filename){
+            html+='<img src="/viz/'+ref.filename+'" alt="'+ref.label+'" title="'+ref.label+'" onclick="document.getElementById(\'lightboxImg\').src=this.src;document.getElementById(\'lightbox\').classList.add(\'show\')">';
+          }
           html+='<button class="ticket-btn" onclick="raiseTicket(\''+ref.id+'\',this)">🎫 Ticket '+ref.label+'</button>';
           html+='</div>';
         });
@@ -720,7 +722,7 @@ function refreshTicketList(){
     empty.style.display='none';
     list.innerHTML=d.tickets.map(t=>`
       <div class="ticket-card">
-        <div class="tc-title">🎫 Frame ${t.frame_id!==null?t.frame_id:'?'}</div>
+        <div class="tc-title">🎫 Sample ${escHtml(String(t.sample_id))}</div>
         <div class="tc-meta">${t.filename} · ${t.size_kb} KB</div>
         <a href="javascript:void(0)" onclick="viewTicket('${t.filename}')">Open Ticket ↗</a>
       </div>

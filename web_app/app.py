@@ -452,6 +452,15 @@ def chat_ask():
             # Extract image references from raw query results for frame/image display
             image_refs = []
             sql_rows = []
+            viz_dir = _get_out_dir() / "viz"
+
+            def find_viz_file(*candidate_names):
+                """Return the first visualization filename that exists."""
+                for candidate in candidate_names:
+                    if candidate and (viz_dir / candidate).is_file():
+                        return candidate
+                return None
+
             try:
                 raw = chat.db_client.execute_query(sql_query)
                 if raw:
@@ -464,19 +473,27 @@ def chat_ask():
                             fid = row['frame_id']
                             if fid not in seen:
                                 seen.add(fid)
+                                viz_name = f"frame_{fid:06d}.jpg"
                                 image_refs.append({
                                     "id": fid,
-                                    "filename": f"frame_{fid:06d}.jpg",
+                                    "filename": find_viz_file(viz_name),
                                     "label": f"Frame {fid}"
                                 })
                     elif 'source' in cols:
-                        # Classification use case: source -> stem.jpg
+                        # Image and sensor use cases: attach a visualization only
+                        # when an actual visualization file exists.
                         from pathlib import Path as P
                         for row in raw:
                             src = row['source']
                             if src and src not in seen:
                                 seen.add(src)
-                                viz_name = P(src).stem + '.jpg'
+                                source_path = P(src)
+                                viz_name = find_viz_file(
+                                    source_path.name,
+                                    source_path.stem + '.jpg',
+                                    source_path.stem + '.png',
+                                    source_path.stem + '.jpeg',
+                                )
                                 image_refs.append({
                                     "id": row.get('image_id', src),
                                     "filename": viz_name,
@@ -556,11 +573,20 @@ def ticket_create():
         from src.utility.sqlite_client import SQLiteClient
 
         full_cfg = _load_full_config()
+        inference_cfg = full_cfg.get('inference', {})
         sqlite_cfg = full_cfg.get('sqlite', {})
         schema = full_cfg.get('schema')
+        include_image = bool(
+            inference_cfg.get('images_path')
+            or inference_cfg.get('video_path')
+        )
         db_path = sqlite_cfg.get('db_path', 'out/sql_data/detections.db')
         db = SQLiteClient(db_path=db_path, schema=schema)
-        result = create_ticket(db, frame_id)
+        result = create_ticket(
+            db,
+            frame_id,
+            include_image=include_image,
+        )
         db.close()
         return jsonify(result)
     except Exception as e:
@@ -575,16 +601,27 @@ def list_tickets():
     tickets = []
     if tickets_dir.exists():
         for f in sorted(tickets_dir.glob("ticket_*.html")):
-            # Extract frame_id from filename ticket_<frame_id>.html
+            # Extract the sample identifier from ticket_<sample_id>.html.
+            sample_id = f.stem.removeprefix("ticket_")
+
+            # Restore common image extensions sanitized for ticket filenames.
+            for suffix in ("_jpeg", "_jpg", "_png"):
+                if sample_id.lower().endswith(suffix):
+                    sample_id = sample_id[:-len(suffix)] + "." + suffix[1:]
+                    break
+
+            # Preserve frame_id for backward compatibility with numeric tickets.
             try:
-                fid = int(f.stem.replace("ticket_", ""))
+                fid = int(sample_id)
             except ValueError:
                 fid = None
+
             tickets.append({
                 "filename": f.name,
                 "path": str(f),
                 "url": f"/ticket/{f.name}",
                 "frame_id": fid,
+                "sample_id": sample_id,
                 "size_kb": round(f.stat().st_size / 1024, 1),
             })
     return jsonify({"tickets": tickets})

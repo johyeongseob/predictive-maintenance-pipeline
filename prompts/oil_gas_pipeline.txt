@@ -24,11 +24,21 @@ Flag high-degradation rows when continuous_value > degradation_threshold.
 
 [ANALYSIS]
 Generate a concise analysis report from the oil and gas pipeline statistics.
-Focus on condition distribution, predicted thickness loss, high-degradation samples, and material-level degradation patterns.
+
+Use these four sections:
+1. Condition Distribution
+2. Predicted Thickness Loss
+3. High-Degradation Samples
+4. Material-Level Degradation
+
 Use continuous_value as predicted thickness loss.
 Use material_type to compare degradation across pipe materials.
-Keep the report short and summarize only the top 3 materials.
+Use regression_statistics—not confidence statistics—for thickness-loss values.
+For material-level degradation, summarize only the top 3 materials.
+Use one short sentence per material.
 Use actual values only and avoid placeholders in the final report.
+Do not add long explanations.
+Do not exceed 250 words.
 
 [EVIDENCE]
 Generate a concise audit trail showing policy decisions and traceability.

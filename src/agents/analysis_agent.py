@@ -40,12 +40,16 @@ def analysis_agent(state: Dict[str, Any]) -> Dict[str, Any]:
     
     # Generate statistics
     stats = _generate_stats(filtered, policy)
-    
+
     # Generate text summary with LLM if available
     summary_text = ""
     if llm and analysis_prompt:
         try:
-            summary_text = _generate_summary_with_llm(llm, analysis_prompt, stats)
+            summary_text = _generate_summary_with_llm(
+                llm,
+                analysis_prompt,
+                stats,
+            )
         except Exception as e:
             print(f"[Analysis Agent] ⚠️  LLM failed ({e}), using fallback")
             summary_text = _generate_fallback_summary(stats)
@@ -243,28 +247,19 @@ def _generate_regression_stats(detections, policy):
     }
 
 
-def _generate_summary_with_llm(llm, prompt: str, stats: Dict) -> str:
-    """Generate summary using LLM."""
-    concise_instruction = """
-Keep the report concise.
-Use at most 4 short sections:
-1. Condition Distribution
-2. Predicted Thickness Loss
-3. High-Degradation Samples
-4. Material-Level Degradation
+def _generate_summary_with_llm(
+    llm,
+    prompt: str,
+    stats: Dict,
+) -> str:
 
-For material-level degradation, summarize only the top 3 materials.
-Use one short sentence per material.
-Do not add long explanations.
-Do not exceed 250 words.
-"""
+    """Generate summary using the configured use-case prompt."""
     enhanced_prompt = (
         f"{prompt}\n\n"
-        f"{concise_instruction}\n\n"
         f"Statistics:\n{json.dumps(stats, indent=2)}\n\n"
         "Generate a concise analysis report:"
     )
-    result = llm.invoke(enhanced_prompt, temperature=0.3, max_new_tokens=300)
+    result = llm.invoke(enhanced_prompt, temperature=0.3, max_new_tokens=450)
     return result.strip()
 
 

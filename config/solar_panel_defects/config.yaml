@@ -1,0 +1,125 @@
+display_text: "Solar Panel Defects"
+modality: image  # 'image', 'sensor', or 'multi'
+
+nc: 12
+names:
+  0: crack
+  1: finger
+  2: thick_line
+  3: star_crack
+  4: short_circuit
+  5: black_core
+  6: horizontal_dislocation
+  7: fragment
+  8: corner
+  9: vertical_dislocation
+  10: scratch
+  11: printing_error
+
+inference:
+  handler: openvino_detect
+  task: detect  # 'detect' or 'classify'
+  model_path: models/ov_models/solar_panel_defects/best.xml
+  device: GPU
+  inference_precision_hint: f32
+  confidence_threshold: 0.25
+  iou_threshold: 0.45
+  imgsz: 640
+  num_images: 100
+  input_mode: images
+  images_path: datasets/solar_panel_defects/test/JPEGImages
+  modality_source: electroluminescence
+
+sqlite:
+  db_path: out/solar_panel_defects/sql_data/detections.db
+  clear_on_run: true
+  clear_outputs: true
+
+agents:
+  active: [policy, analysis, evidence]
+  confidence_threshold: 0.5
+  report_top_n: 5
+  execution_mode: sequential
+  shared_device: GPU
+
+  policy:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+  analysis:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+  evidence:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+glue:
+  mode: model
+  model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+  device: GPU
+  max_steps: 4
+  verbose: true
+  enable_cache: false
+  suppress_thinking: true
+
+sql:
+  model_id: models/ov_models/llms/sqlcoder-7b-2-int4cw
+  device: GPU
+  use_case: solar_panel_defects
+
+schema:
+  table_name: detections
+  columns:
+    - name: id
+      type: INTEGER PRIMARY KEY AUTOINCREMENT
+      required: false
+    - name: image_id
+      type: INTEGER
+      required: false
+    - name: source
+      type: TEXT
+      required: true
+    - name: label
+      type: TEXT
+      required: true
+    - name: confidence
+      type: REAL
+      required: true
+    - name: bbox_xmin
+      type: REAL
+      required: false
+    - name: bbox_ymin
+      type: REAL
+      required: false
+    - name: bbox_xmax
+      type: REAL
+      required: false
+    - name: bbox_ymax
+      type: REAL
+      required: false
+    - name: modality_source
+      type: TEXT
+      required: false
+    - name: created_at
+      type: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      required: false
+  indexes:
+    - label
+    - confidence
+    - source
+    - modality_source
+
+detection_mapping:
+  image_id: __frame_index__
+  source: source
+  label: detection.label
+  confidence: detection.confidence
+  bbox_xmin: detection.bounding_box.x_min
+  bbox_ymin: detection.bounding_box.y_min
+  bbox_xmax: detection.bounding_box.x_max
+  bbox_ymax: detection.bounding_box.y_max
+  modality_source: modality_source

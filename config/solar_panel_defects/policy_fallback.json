@@ -1,0 +1,17 @@
+{
+  "min_conf_global": 0.5,
+  "per_class_thresholds": {
+    "crack": 0.5,
+   "finger": 0.5,
+    "thick_line": 0.5,
+    "star_crack": 0.5,
+    "short_circuit": 0.5,
+    "black_core": 0.5,
+    "horizontal_dislocation": 0.5,
+    "fragment": 0.5,
+    "corner": 0.5,
+    "vertical_dislocation": 0.5,
+    "scratch": 0.5,
+    "printing_error": 0.5
+  }
+}

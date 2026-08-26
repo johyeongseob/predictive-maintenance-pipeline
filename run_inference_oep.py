@@ -118,6 +118,10 @@ if __name__ == '__main__':
             if not args.images and config_images_path:
                 args.images = config_images_path
             
+            # Load the configured image limit unless explicitly overridden.
+            if args.num_images is None:
+                args.num_images = inference_cfg.get('num_images')
+
             # Load video path from config if not provided via --video
             if not args.video:
                 input_mode = inference_cfg.get('input_mode', 'images')
