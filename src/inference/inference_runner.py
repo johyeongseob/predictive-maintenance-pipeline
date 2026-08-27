@@ -107,6 +107,7 @@ def run_inference(model_path, model_proc_path, images_dir, output_file,
         output_file=output_file,
         out_subdir=out_subdir,
     )
+    handler_config["num_images"] = num_images
 
     handler = dispatch(handler_config)
     handler.load(handler_config)
