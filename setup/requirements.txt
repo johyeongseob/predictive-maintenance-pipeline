@@ -23,6 +23,7 @@ langchain-core>=0.3.0
 # Audio and text preprocessing
 
 librosa
+imageio-ffmpeg
 scikit-learn
 joblib
 
