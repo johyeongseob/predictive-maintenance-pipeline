@@ -90,7 +90,9 @@ def _build_representative_samples(detections, limit=5):
     """Return high-confidence samples with available evidence fields."""
     evidence_fields = (
         "sample_id",
+        "image_id",
         "source",
+        "state",
         "label",
         "confidence",
         "image_confidence",
@@ -99,6 +101,7 @@ def _build_representative_samples(detections, limit=5):
         "text_confidence",
         "sensor_type",
         "text_caption",
+        "text_prompt",
     )
 
     ranked = sorted(
@@ -114,6 +117,12 @@ def _build_representative_samples(detections, limit=5):
             for field in evidence_fields
             if detection.get(field) is not None
         }
+
+        for text_field in ("text_caption", "text_prompt"):
+            value = sample.get(text_field)
+            if isinstance(value, str) and len(value) > 300:
+                sample[text_field] = value[:297] + "..."
+
         samples.append(sample)
 
     return samples
