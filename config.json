@@ -1,5 +1,5 @@
 {
-  "default-use-case": "manufacturing_maintenance",
+  "default-use-case": "water_treatment",
   "use-cases": [
     {
       "id": "pipeline_defects_detection",
@@ -24,6 +24,10 @@
     {
       "id": "manufacturing_maintenance",
       "display_text": "Manufacturing Maintenance"
+    },
+    {
+      "id": "water_treatment",
+      "display_text": "Water Treatment"
     }
   ]
 }
