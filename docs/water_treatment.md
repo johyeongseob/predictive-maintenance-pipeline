@@ -154,7 +154,7 @@ inference:
   image_model_path: models/ov_models/water_treatment/image.xml
   text_model_path: models/ov_models/water_treatment/text.xml
   preprocessing_path: models/ov_models/water_treatment/preprocessing.pt
-  manifest_path: gsoc_guide/datasets/water_treatment/manifest.csv
+  manifest_path: datasets/water_treatment/manifest.csv
 ```
 
 The preview channel selection and contrast percentiles are configuration
