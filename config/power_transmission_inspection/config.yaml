@@ -1,0 +1,91 @@
+display_text: "Power Transmission Inspection"
+modality: image  # 'image', 'sensor', or 'multi'
+
+nc: 3
+names:
+  0: circuito_duplo
+  1: circuito_real
+  2: circuito_simples
+
+inference:
+  handler: openvino_classify
+  task: classify  # 'detect' or 'classify'
+  model_path: models/ov_models/power_transmission_inspection/best.xml
+  device: GPU
+  imgsz: 640
+  input_mode: images
+  images_path: datasets/power_transmission_inspection
+
+sqlite:
+  db_path: out/power_transmission_inspection/sql_data/detections.db
+  clear_on_run: true
+  clear_outputs: true
+
+agents:
+  active: [policy, analysis, evidence]
+  confidence_threshold: 0.5
+  report_top_n: 5
+  execution_mode: sequential
+  shared_device: GPU
+
+  policy:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+  analysis:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+  evidence:
+    llm_mode: model
+    model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+    device: GPU
+
+glue:
+  mode: model
+  model_id: models/ov_models/llms/Phi-4-mini-instruct-int4gq
+  device: GPU
+  max_steps: 4
+  verbose: true
+  enable_cache: false
+  suppress_thinking: true
+
+sql:
+  model_id: models/ov_models/llms/sqlcoder-7b-2-int4cw
+  device: GPU
+  use_case: power_transmission_inspection
+
+schema:
+  table_name: detections
+  columns:
+    - name: id
+      type: INTEGER PRIMARY KEY AUTOINCREMENT
+      required: false
+    - name: image_id
+      type: INTEGER
+      required: true
+    - name: source
+      type: TEXT
+      required: true
+    - name: label
+      type: TEXT
+      required: true
+    - name: confidence
+      type: REAL
+      required: true
+    - name: created_at
+      type: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      required: false
+  indexes:
+    - label
+    - confidence
+    - source
+
+# Mapping from classification results to SQLite columns.
+detection_mapping:
+  image_id: __frame_index__
+  source: source
+  label: label
+  confidence: confidence

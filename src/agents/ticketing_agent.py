@@ -27,6 +27,17 @@ def _safe_filename_stem(value: str) -> str:
     return stem
 
 
+def _filename_lookup_key(value: str) -> str:
+    """Return a case-insensitive key for matching an existing viz file.
+
+    This key is used only for dictionary lookup. It is never converted
+    directly into a filesystem path.
+    """
+    basename = os.path.basename(str(value))
+    stem = os.path.splitext(basename)[0]
+    return stem.casefold()
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
@@ -242,15 +253,15 @@ def create_ticket(
     # Build an index of actual files in viz_dir. Image paths are selected
     # exclusively from this index — no user input ever flows into a Path
     # constructor, which eliminates CodeQL path-injection taint entirely.
-    viz_files: Dict[str, Path] = {}  # lowercase stem -> resolved Path
+    viz_files: Dict[str, Path] = {}  # lookup key -> enumerated resolved Path
     if viz_dir.is_dir():
         for entry in viz_dir.iterdir():
             if entry.is_file():
-                viz_files[entry.stem.lower()] = entry.resolve()
+                viz_files[_filename_lookup_key(entry.name)] = entry.resolve()
 
     def _find_viz_image(target_stem: str) -> Optional[Path]:
         """Lookup an image by stem from the pre-built viz file index."""
-        return viz_files.get(target_stem.lower())
+        return viz_files.get(_filename_lookup_key(target_stem))
 
     # Locate the image — user input is only used to compute a lookup key (string),
     # the actual Path object always comes from viz_files (filesystem enumeration).
@@ -262,18 +273,9 @@ def create_ticket(
         if not image_path and detections:
             src = detections[0].get('source', '')
             if src:
-                try:
-                    lookup_stem = _safe_filename_stem(src)
-                    image_path = _find_viz_image(lookup_stem)
-                except ValueError:
-                    pass
+                image_path = _find_viz_image(src)
     else:
-        # String identifier (e.g. gas detection "1014_Perfume.png")
-        try:
-            lookup_stem = _safe_filename_stem(str(frame_id))
-            image_path = _find_viz_image(lookup_stem)
-        except ValueError:
-            pass
+        image_path = _find_viz_image(str(frame_id))
 
     if include_image and not image_path:
         # No matching file found; use a non-existent placeholder so

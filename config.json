@@ -1,5 +1,5 @@
 {
-  "default-use-case": "solar_panel_defects",
+  "default-use-case": "power_transmission_inspection",
   "use-cases": [
     {
       "id": "pipeline_defects_detection",
@@ -16,6 +16,10 @@
     {
       "id": "solar_panel_defects",
       "display_text": "Solar Panel Defects"
+    },
+    {
+      "id": "power_transmission_inspection",
+      "display_text": "Power Transmission Inspection"
     }
   ]
 }

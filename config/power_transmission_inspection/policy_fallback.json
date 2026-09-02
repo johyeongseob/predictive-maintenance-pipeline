@@ -1,0 +1,8 @@
+{
+  "min_conf_global": 0.5,
+  "per_class_thresholds": {
+    "circuito_duplo": 0.5,
+    "circuito_real": 0.5,
+    "circuito_simples": 0.5
+  }
+}
