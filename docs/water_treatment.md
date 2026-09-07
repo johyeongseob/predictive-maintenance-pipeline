@@ -60,7 +60,7 @@ Each multichannel raster patch is converted into 60 handcrafted features. For ea
 - 10th percentile;
 - 90th percentile.
 
-The resulting vector is normalized using the scaler stored in `preprocessing.pt`.
+The resulting vector is normalized using the scaler stored in `preprocessing.joblib`.
 
 ### Image branch
 
@@ -71,7 +71,7 @@ The resulting vector is normalized using the scaler stored in `preprocessing.pt`
 
 ### Text preprocessing
 
-The environmental text prompt associated with each patch is transformed into a 128-dimensional TF-IDF vector using the fitted vectorizer stored in `preprocessing.pt`.
++ The environmental text prompt associated with each patch is transformed into a 128-dimensional TF-IDF vector using the fitted vectorizer stored in `preprocessing.joblib`.
 
 ### Text branch
 
@@ -89,7 +89,7 @@ The environmental text prompt associated with each patch is transformed into a 1
 
 ### Late fusion
 
-The fusion weights stored in `preprocessing.pt` are:
+The fusion weights stored in `preprocessing.joblib` are:
 
 ```yaml
 fusion_weights:
@@ -153,7 +153,7 @@ inference:
   preview_percentiles: [2, 98]
   image_model_path: models/ov_models/water_treatment/image.xml
   text_model_path: models/ov_models/water_treatment/text.xml
-  preprocessing_path: models/ov_models/water_treatment/preprocessing.pt
+  preprocessing_path: models/ov_models/water_treatment/preprocessing.joblib
   manifest_path: datasets/water_treatment/manifest.csv
 ```
 

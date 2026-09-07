@@ -34,7 +34,7 @@ class OpenVINOImageTextClassifyHandler(InferenceHandler):
 
     def load(self, config: dict) -> None:
         import openvino as ov
-        import torch
+        import joblib
 
         self.config = config
         inference_cfg = config.get("inference", {})
@@ -54,11 +54,7 @@ class OpenVINOImageTextClassifyHandler(InferenceHandler):
                     f"Required Task H file not found: {path}"
                 )
 
-        checkpoint = torch.load(
-            preprocessing_path,
-            map_location="cpu",
-            weights_only=False,
-        )
+        checkpoint = joblib.load(preprocessing_path)
 
         self.classes = list(checkpoint["classes"])
         self.image_scaler_mean = np.asarray(
